@@ -40,10 +40,15 @@ fn main() {
     blocks.push(Block::new(-92, 4, -468, BEDROCK));
     blocks.push(Block::new(-92, 4, -467, BEDROCK));
 
-    //todo multihread and return something
-    search_bedrock_pattern(&mut blocks);
+    let rx = search_bedrock_pattern(&mut blocks, 12);
+    println!("Started Cracking");
 
-    //world_seeds_from_bedrock_seed();
+    for seed in rx {
+        let world_seeds = world_seeds_from_bedrock_seed(seed, true);
+        for world_seed in world_seeds {
+            println!("Found World seed: {}", world_seed);
+        }
+    }
 
     let delta = SystemTime::now().duration_since(start).expect("Couldnt stop time");
     println!("Time elapsed: {}", delta.as_secs());

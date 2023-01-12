@@ -1,5 +1,10 @@
-use java_random::JAVA_LCG;
+use std::borrow::Borrow;
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
+use java_random::{JAVA_LCG, Random};
 use next_long_reverser::get_next_long;
+use crate::NextOperation::{LAYER, NONE, SEND};
 
 const MASK48: u64 = 0xffff_ffff_ffff;
 
@@ -91,7 +96,7 @@ impl Block {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CheckObject {
     pos_hash: u64,
     condition: u64,
@@ -112,43 +117,48 @@ impl CheckObject {
     }
 }
 
+#[derive(Debug, Clone)]
+enum NextOperation {
+    LAYER(Box<Layer>),
+    SEND(Sender<u64>),
+    NONE,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Layer {
     checks: Vec<CheckObject>,
     split: u64,
-    next_layer: Option<Box<Layer>>,
+    next_operation: NextOperation,
 }
 
 impl Layer {
-    fn new(lower_bits: u64, checks: Vec<CheckObject>) -> Layer {
+    fn new(lower_bits: u64, checks: Vec<CheckObject>, tx: &Sender<u64>) -> Layer {
         let split: u64 = 1 << (lower_bits.saturating_sub(1));
-        Layer {checks, split, next_layer: None}
+        let mut next_operation = NONE;
+        if lower_bits == 0 { next_operation = SEND(tx.clone()) }
+        Layer {checks, split, next_operation }
     }
 
     fn run_checks(&self, upper_bits: u64) {
-        //println!("run:");
         for check in self.checks.iter() {
             if check.check(upper_bits) {
-                //println!("check failed: {upper_bits} {:#?}",check);
                 return;
             }
-            //println!("success");
         }
-        match self.next_layer.as_ref() {
-            Some(layer) => {
+        match self.next_operation.borrow() {
+            LAYER(layer) => {
                 layer.run_checks(upper_bits);
                 layer.run_checks(upper_bits + self.split);
             },
-            None => {
-                let chance = upper_bits as f64 / MASK48 as f64;
-                println!("Found Seed: {} percent: {}", upper_bits, chance)
+            SEND(tx) => {
+                tx.send(upper_bits).unwrap();
             },
+            _ => {panic!("No operation")},
         }
     }
 }
 
-fn create_filter_tree(blocks: &mut Vec<Block>) -> Layer {
+fn create_filter_tree(blocks: &mut Vec<Block>, tx: Sender<u64>) -> Layer {
     //sort everything by filter power
     //wanted to try functional programming
     let layers: Vec<Layer> = (0..=12)
@@ -165,20 +175,20 @@ fn create_filter_tree(blocks: &mut Vec<Block>) -> Layer {
                 .map(|(_ ,a)| a.create_check(bits))
                 .collect();
 
-            Layer::new(bits, res)
+            Layer::new(bits, res, &tx)
         })
         .collect();
     layers.into_iter()
         .rev()
         .reduce(|next_layer, mut layer| {
             let prev_layer = Box::new(next_layer);
-            layer.next_layer = Some(prev_layer);
+            layer.next_operation = LAYER(prev_layer);
             layer
         })
         .expect("For some reason no layers were created")
 }
 
-pub fn world_seeds_from_bedrock_seed(seed: u64, is_floor: bool) -> Vec<u64> {
+pub fn world_seeds_from_bedrock_seed(seed: u64, is_floor: bool) -> Vec<i64> {
     let mut hashcode = 343340730; //minecraft:bedrock_roof
     if is_floor {
         hashcode = 2042456806; //minecraft:bedrock_floor
@@ -190,19 +200,36 @@ pub fn world_seeds_from_bedrock_seed(seed: u64, is_floor: bool) -> Vec<u64> {
             seed ^= hashcode;
             get_next_long(seed).into_iter()
         })
-        .map(|mut seed| {
-            seed ^= JAVA_LCG.multiplier;
-            seed & MASK48
-        })
+        .map(|seed| seed ^ JAVA_LCG.multiplier)
+        // Neils get_next_long() masks the output so I go one step further and back
+        .flat_map(|seed| get_next_long(seed))
+        .map(|seed| Random::with_raw_seed(seed).next_long())
         .collect()
 }
 
-pub fn search_bedrock_pattern(blocks: &mut Vec<Block>) {
-    let checks = create_filter_tree(blocks);
+pub fn search_bedrock_pattern(blocks: &mut Vec<Block>, thread_count: u8) -> Receiver<u64> {
 
-    for upper_bits in (0..0xFFFF_FFFF_FFFF).step_by(1<<12) {
-        checks.run_checks(upper_bits);
+    let (tx, rx) = mpsc::channel();
+    let checks = create_filter_tree(blocks, tx);
+
+    let thread_count = thread_count as u64;
+
+    for thread in 0..thread_count {
+        let mut start_bits = (thread * (1<<36))/thread_count;
+        let mut end_bits = ((thread+1) * (1<<36))/thread_count;
+        start_bits = start_bits << 12;
+        end_bits = end_bits << 12;
+
+        let checks = checks.clone();
+
+        thread::spawn(move || {
+            for upper_bits in (start_bits..end_bits).step_by(1<<12) {
+                checks.run_checks(upper_bits);
+            }
+        });
     }
+
+    rx
 }
 
 #[cfg(test)]
@@ -228,8 +255,8 @@ mod tests {
     #[test]
     fn test_seed_conversion() {
         let roof_seed = 1442567685227760047 & MASK48;
-        let seed = 5354280283422356689 & MASK48;
-        assert!(recover_world_seeds(roof_seed, false).contains(&seed));
+        let seed = 5354280283422356689;
+        assert!(world_seeds_from_bedrock_seed(roof_seed, false).contains(&seed));
     }
 
     #[test]
@@ -249,7 +276,6 @@ mod tests {
     #[test]
     fn test_bedrock_matches() {
         let mut seed = 9210758467792927021 & MASK48;
-        println!("{seed}");
         seed = seed & 0xFFFF_FFFF_F000;
         let mut blocks = Vec::new();
         blocks.push(Block::new(-98, 4, -469, BEDROCK));

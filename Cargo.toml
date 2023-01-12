@@ -3,6 +3,10 @@ name = "bedrock_cracker"
 version = "0.1.0"
 edition = "2021"
 
+#Running this in level 0 is omega slow and compiletime is tiny even with level 3
+[profile.dev]
+opt-level = 3
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
