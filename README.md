@@ -1,5 +1,6 @@
 # Nether_Bedrock_Cracker
-Cracks nether seeds from bedrock
+Cracks nether seeds from bedrock. This works in 1.18 and upwards since bedrock became seed dependent in that release.
+The overworld uses a different RNG so the cool math thats used here doesnt apply.
 
 ## Usage
 ### Rust
