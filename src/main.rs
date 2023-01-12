@@ -1,12 +1,12 @@
 extern crate core;
 
 use std::time::SystemTime;
-use java_random::{JAVA_LCG, Random};
-use next_long_reverser::get_next_long;
-use bedrock_cracker::{Block, create_filter_tree, Layer};
+use bedrock_cracker::{Block, search_bedrock_pattern, world_seeds_from_bedrock_seed};
+#[allow(unused_imports)]
 use bedrock_cracker::BlockType::{BEDROCK, OTHER};
 
 fn main() {
+
     let start = SystemTime::now();
 
     let mut blocks = Vec::new();
@@ -40,11 +40,10 @@ fn main() {
     blocks.push(Block::new(-92, 4, -468, BEDROCK));
     blocks.push(Block::new(-92, 4, -467, BEDROCK));
 
-    let checks = create_filter_tree(&mut blocks);
+    //todo multihread and return something
+    search_bedrock_pattern(&mut blocks);
 
-    for upper_bits in (0..0xFFFF_FFFF_FFFF).step_by(1<<12) {
-        checks.run_checks(upper_bits);
-    }
+    //world_seeds_from_bedrock_seed();
 
     let delta = SystemTime::now().duration_since(start).expect("Couldnt stop time");
     println!("Time elapsed: {}", delta.as_secs());

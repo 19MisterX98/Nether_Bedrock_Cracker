@@ -1,4 +1,4 @@
-use java_random::{JAVA_LCG, Random};
+use java_random::JAVA_LCG;
 use next_long_reverser::get_next_long;
 
 const MASK48: u64 = 0xffff_ffff_ffff;
@@ -12,11 +12,18 @@ pub struct Block {
     pos_hash: u64,
     lower_bound: u64,
     upper_bound: u64,
-    valid_range: u64,
     possible_range: u64,
 }
 
 impl Block {
+
+    pub fn new(x: i32, y: i32, z: i32, block_type: BlockType) -> Block {
+
+        let pos_hash = Block::hashcode(x,y,z) ^ JAVA_LCG.multiplier;
+        let (lower_bound, upper_bound) = Block::bounds(y, block_type);
+
+        Block { pos_hash, lower_bound, upper_bound, possible_range: MASK48 }
+    }
 
     fn create_check(&mut self, lower_bits: u64) -> CheckObject {
         let lower_bits_mask = (1 << lower_bits) - 1;
@@ -24,9 +31,7 @@ impl Block {
         CheckObject::new(self.pos_hash, self.lower_bound, self.upper_bound, lower_bits_mask)
     }
 
-    /*
-    Figure out how many seeds an operation filters
-     */
+    //Figure out how many seeds an operation filters
     fn discarded_seeds(&self, lower_bits: u64) -> f64 {
         let lower_bits_mask = (1 << lower_bits) - 1;
         let bound = self.bound() + lower_bits_mask * JAVA_LCG.multiplier;
@@ -50,16 +55,6 @@ impl Block {
     fn bound(&self) -> u64 {
         assert!(self.upper_bound > self.lower_bound);
         self.upper_bound - self.lower_bound
-    }
-
-    pub fn new(x: i32, y: i32, z: i32, block_type: BlockType) -> Block {
-
-        let pos_hash = Block::hashcode(x,y,z) ^ JAVA_LCG.multiplier;
-        let (lower_bound, upper_bound) = Block::bounds(y, block_type);
-        let valid_range = upper_bound - lower_bound;
-        println!("Block: {x}, {y}, {z}, {pos_hash}");
-
-        Block { pos_hash, lower_bound, upper_bound, valid_range, possible_range: MASK48 }
     }
 
     fn hashcode(x: i32, y: i32, z: i32) -> u64 {
@@ -90,13 +85,70 @@ impl Block {
         lower_bound *= MASK48 as f64;
         upper_bound *= MASK48 as f64;
 
-        println!("lower_bound: {lower_bound}, upper_bound: {upper_bound}");
+        //println!("lower_bound: {lower_bound}, upper_bound: {upper_bound}");
 
         (lower_bound as u64, upper_bound as u64)
     }
 }
 
-pub fn create_filter_tree(blocks: &mut Vec<Block>) -> Layer {
+#[derive(Debug)]
+struct CheckObject {
+    pos_hash: u64,
+    condition: u64,
+    offset: u64,
+}
+
+impl CheckObject {
+
+    fn new(pos_hash: u64, lower_bound: u64, upper_bound: u64, lower_bit_mask: u64) -> CheckObject {
+        let offset = MASK48 - upper_bound;
+        let pos_hash = pos_hash & (MASK48 - lower_bit_mask);
+        let condition = lower_bound.wrapping_add(offset).wrapping_sub(lower_bit_mask * JAVA_LCG.multiplier);
+        CheckObject { pos_hash, condition, offset }
+    }
+
+    fn check(&self, upper_bits: u64) -> bool {
+        ((upper_bits ^ self.pos_hash).wrapping_mul(JAVA_LCG.multiplier).wrapping_add(self.offset) & MASK48) < self.condition
+    }
+}
+
+
+#[derive(Debug)]
+struct Layer {
+    checks: Vec<CheckObject>,
+    split: u64,
+    next_layer: Option<Box<Layer>>,
+}
+
+impl Layer {
+    fn new(lower_bits: u64, checks: Vec<CheckObject>) -> Layer {
+        let split: u64 = 1 << (lower_bits.saturating_sub(1));
+        Layer {checks, split, next_layer: None}
+    }
+
+    fn run_checks(&self, upper_bits: u64) {
+        //println!("run:");
+        for check in self.checks.iter() {
+            if check.check(upper_bits) {
+                //println!("check failed: {upper_bits} {:#?}",check);
+                return;
+            }
+            //println!("success");
+        }
+        match self.next_layer.as_ref() {
+            Some(layer) => {
+                layer.run_checks(upper_bits);
+                layer.run_checks(upper_bits + self.split);
+            },
+            None => {
+                let chance = upper_bits as f64 / MASK48 as f64;
+                println!("Found Seed: {} percent: {}", upper_bits, chance)
+            },
+        }
+    }
+}
+
+fn create_filter_tree(blocks: &mut Vec<Block>) -> Layer {
     //sort everything by filter power
     //wanted to try functional programming
     let layers: Vec<Layer> = (0..=12)
@@ -126,67 +178,10 @@ pub fn create_filter_tree(blocks: &mut Vec<Block>) -> Layer {
         .expect("For some reason no layers were created")
 }
 
-#[derive(Debug)]
-pub struct CheckObject {
-    pos_hash: u64,
-    condition: u64,
-    offset: u64,
-}
-
-impl CheckObject {
-
-    fn check(&self, upper_bits: u64) -> bool {
-        ((upper_bits ^ self.pos_hash).wrapping_mul(JAVA_LCG.multiplier).wrapping_add(self.offset) & MASK48) < self.condition
-    }
-
-    pub fn new(pos_hash: u64, lower_bound: u64, upper_bound: u64, lower_bit_mask: u64) -> CheckObject {
-        let offset = MASK48 - upper_bound;
-        let pos_hash = pos_hash & (MASK48 - lower_bit_mask);
-        let condition = lower_bound.wrapping_add(offset).wrapping_sub(lower_bit_mask * JAVA_LCG.multiplier);
-        CheckObject { pos_hash, condition, offset }
-    }
-}
-
-
-#[derive(Debug)]
-pub struct Layer {
-    pub checks: Vec<CheckObject>,
-    pub split: u64,
-    pub next_layer: Option<Box<Layer>>,
-}
-
-impl Layer {
-    pub fn new(lower_bits: u64, checks: Vec<CheckObject>) -> Layer {
-        let split: u64 = 1 << (lower_bits.saturating_sub(1));
-        Layer {checks, split, next_layer: None}
-    }
-
-    pub fn run_checks(&self, upper_bits: u64) {
-        //println!("run:");
-        for check in self.checks.iter() {
-            if check.check(upper_bits) {
-                //println!("check failed: {upper_bits} {:#?}",check);
-                return;
-            }
-            //println!("success");
-        }
-        match self.next_layer.as_ref() {
-            Some(layer) => {
-                layer.run_checks(upper_bits);
-                layer.run_checks(upper_bits + self.split);
-            },
-            None => {
-                let chance = upper_bits as f64 / MASK48 as f64;
-                println!("Found Seed: {} percent: {}", upper_bits, chance)
-            },
-        }
-    }
-}
-
-fn recover_world_seeds(seed: u64, is_floor: bool) -> Vec<u64> {
-    let mut hashcode = 343340730; //roof
+pub fn world_seeds_from_bedrock_seed(seed: u64, is_floor: bool) -> Vec<u64> {
+    let mut hashcode = 343340730; //minecraft:bedrock_roof
     if is_floor {
-        hashcode = 2042456806; //floor
+        hashcode = 2042456806; //minecraft:bedrock_floor
     }
 
     get_next_long(seed).into_iter()
@@ -202,23 +197,32 @@ fn recover_world_seeds(seed: u64, is_floor: bool) -> Vec<u64> {
         .collect()
 }
 
+pub fn search_bedrock_pattern(blocks: &mut Vec<Block>) {
+    let checks = create_filter_tree(blocks);
+
+    for upper_bits in (0..0xFFFF_FFFF_FFFF).step_by(1<<12) {
+        checks.run_checks(upper_bits);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use java_random::Random;
     use crate::BlockType::BEDROCK;
     use super::*;
 
-/*
-upper_bits: 81699833426244
-lower_bits: 29905
-seed: 5354280283422356689
-floor: 9210758467792927021
-roof: 1442567685227760047
-*/
+    /*
+    upper_bits: 81699833426244
+    lower_bits: 29905
+    seed: 5354280283422356689
+    floor: 9210758467792927021
+    roof: 1442567685227760047
+    */
 
     #[test]
     fn test_hashcode() {
         let block = Block::new(-98, 4, -469, BEDROCK);
-        assert_eq!(block.pos_hash, 99261249361405)
+        assert_eq!(block.pos_hash, 99261249361405 ^ JAVA_LCG.multiplier)
     }
 
     #[test]
@@ -244,7 +248,7 @@ roof: 1442567685227760047
 
     #[test]
     fn test_bedrock_matches() {
-        let mut seed = (9210758467792927021 ^ JAVA_LCG.multiplier) & MASK48;
+        let mut seed = 9210758467792927021 & MASK48;
         println!("{seed}");
         seed = seed & 0xFFFF_FFFF_F000;
         let mut blocks = Vec::new();
