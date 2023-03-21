@@ -4,7 +4,9 @@ The overworld uses a different RNG so the cool math thats used here doesnt apply
 
 ## Usage
 ### Rust
-Install Rust https://www.rust-lang.org/tools/install <br />
+Install Rust https://www.rust-lang.org/tools/install <br>
+On windows rust requires MSVC which normally comes with visual studio.<br> 
+That said visual studio is pretty bloated so you're probably better off installing only MSVC from https://visualstudio.microsoft.com/visual-cpp-build-tools/ <br>
 After that consider using linux cause there it was just one command
 
 ### Repo
