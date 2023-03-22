@@ -40,7 +40,8 @@ fn main() {
         Block::new(-92, 4, -467, BEDROCK),
     ];
 
-    let rx = search_bedrock_pattern(&mut blocks, 12);
+    let rx = search_bedrock_pattern(&mut blocks, num_cpus::get());
+
     println!("Started Cracking");
 
     for seed in rx {
