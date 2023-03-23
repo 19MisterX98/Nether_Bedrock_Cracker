@@ -240,7 +240,7 @@ pub fn world_seeds_from_bedrock_seed(seed: u64, is_floor: bool) -> Vec<i64> {
         .collect()
 }
 
-pub fn search_bedrock_pattern(blocks: &mut [Block], thread_count: u8) -> Receiver<u64> {
+pub fn search_bedrock_pattern(blocks: &mut [Block], thread_count: u64) -> Receiver<u64> {
     let (tx, rx) = mpsc::channel();
     let checks = create_filter_tree(blocks, &tx);
 
