@@ -9,46 +9,34 @@ use bedrock_cracker::{
 fn main() {
     let start = Instant::now();
 
-    let mut blocks = vec![
-        Block::new(-98, 4, -469, BEDROCK),
-        Block::new(-101, 4, -465, BEDROCK),
-        Block::new(-101, 4, -463, BEDROCK),
-        Block::new(-101, 4, -457, BEDROCK),
-        Block::new(-101, 4, -453, BEDROCK),
-        Block::new(-100, 4, -456, BEDROCK),
-        Block::new(-100, 4, -449, BEDROCK),
-        Block::new(-99, 4, -464, BEDROCK),
-        Block::new(-99, 4, -459, BEDROCK),
-        Block::new(-99, 4, -455, BEDROCK),
-        Block::new(-98, 4, -461, BEDROCK),
-        Block::new(-98, 4, -460, BEDROCK),
-        Block::new(-96, 4, -467, BEDROCK),
-        Block::new(-96, 4, -465, BEDROCK),
-        Block::new(-96, 4, -464, BEDROCK),
-        Block::new(-96, 4, -452, BEDROCK),
-        Block::new(-95, 4, -465, BEDROCK),
-        Block::new(-95, 4, -458, BEDROCK),
-        Block::new(-95, 4, -449, BEDROCK),
-        Block::new(-94, 4, -462, BEDROCK),
-        Block::new(-94, 4, -459, BEDROCK),
-        Block::new(-94, 4, -454, BEDROCK),
-        Block::new(-93, 4, -467, BEDROCK),
-        Block::new(-93, 4, -465, BEDROCK),
-        Block::new(-93, 4, -463, BEDROCK),
-        Block::new(-93, 4, -455, BEDROCK),
-        Block::new(-92, 4, -468, BEDROCK),
-        Block::new(-92, 4, -467, BEDROCK),
-    ];
+    let filepath = std::env::args().nth(1).expect("no filepath given");
 
-    let rx = search_bedrock_pattern(&mut blocks, 12);
-    println!("Started Cracking");
+    
+    let contents = std::fs::read_to_string(filepath);
+    match contents {
+        Ok(contents) => {
+            let mut blocks: Vec<Block> = Vec::new();
+            for position in contents.split("\n") {
+                let mut position = position.split(" ");
+                let x = position.next().unwrap().parse::<i32>().unwrap();
+                let y = position.next().unwrap().parse::<i32>().unwrap();
+                let z = position.next().unwrap().parse::<i32>().unwrap();
+                blocks.push(Block::new(x, y, z, BEDROCK));
+            }
 
-    for seed in rx {
-        let world_seeds = world_seeds_from_bedrock_seed(seed, true);
-        for world_seed in world_seeds {
-            println!("Found World seed: {world_seed}");
+            let rx = search_bedrock_pattern(&mut blocks, num_cpus::get() as u64);
+
+            println!("Started Cracking");
+
+            for seed in rx {
+                let world_seeds = world_seeds_from_bedrock_seed(seed, true);
+                for world_seed in world_seeds {
+                    println!("Found World seed: {world_seed}");
+                }
+            }
+            let execution_time = start.elapsed().as_secs();
+            println!("Time elapsed: {execution_time}s");
         }
+        Err(e) => println!("Could nto read file: {e}"),
     }
-    let execution_time = start.elapsed().as_secs();
-    println!("Time elapsed: {execution_time}s");
 }

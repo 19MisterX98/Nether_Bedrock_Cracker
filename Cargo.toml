@@ -12,3 +12,4 @@ opt-level = 3
 [dependencies]
 next_long_reverser = "0.1.0"
 java_random = "0.1.7"
+num_cpus = "1.0"
