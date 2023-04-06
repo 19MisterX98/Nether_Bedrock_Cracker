@@ -6,21 +6,27 @@ use bedrock_cracker::{
     BlockType::{BEDROCK, OTHER},
 };
 
+fn read_coord(coord: Option<&str>, mut line: usize, name: &str) -> i32 {
+    line += 1; // enumerate starts at 0
+    coord.unwrap_or_else(|| panic!("n {} coord in line {}", name, line))
+        .parse().unwrap_or_else(|_| panic!("{} coord in line {} is not a number", name, line))
+}
+
 fn main() {
     let start = Instant::now();
 
-    let filepath = std::env::args().nth(1).expect("no filepath given");
+    let filepath = std::env::args().nth(1).expect("no filepath given, use: cargo run -- your_coords.txt");
 
     
     let contents = std::fs::read_to_string(filepath);
     match contents {
         Ok(contents) => {
             let mut blocks: Vec<Block> = Vec::new();
-            for position in contents.split("\n") {
+            for (line_number, position) in contents.lines().enumerate().filter(|(_, line)| !line.is_empty()) {
                 let mut position = position.split(" ");
-                let x = position.next().unwrap().parse::<i32>().unwrap();
-                let y = position.next().unwrap().parse::<i32>().unwrap();
-                let z = position.next().unwrap().parse::<i32>().unwrap();
+                let x = read_coord(position.next(), line_number, "x");
+                let y = read_coord(position.next(), line_number, "y");
+                let z = read_coord(position.next(), line_number, "z");
                 blocks.push(Block::new(x, y, z, BEDROCK));
             }
 

@@ -1,0 +1,35 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        arch: [x86_64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Build for ${{ matrix.os }} - ${{ matrix.arch }}
+        run: |
+          cargo build --release --target=${{ matrix.arch }}-unknown-${{ matrix.os }}
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          asset_path: ./target/${{ matrix.arch }}-unknown-${{ matrix.os }}/release/bedrock_cracker
+          asset_name: bedrock_cracker-${{ matrix.os }}-${{ matrix.arch }}.exe
+          tag_name: latest
