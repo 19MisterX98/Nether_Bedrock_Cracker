@@ -1,35 +1,84 @@
-name: Build and Release
+#credit https://alican.codes/rust-github-actions
 
-on:
-  push:
-    branches:
-      - master
+name: Build and release
+
+on: [push]
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-        arch: [x86_64, arm64]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    runs-on: ubuntu-latest
 
-      - name: Set up Rust
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
+          default: true
+          override: true
 
-      - name: Build for ${{ matrix.os }} - ${{ matrix.arch }}
-        run: |
-          cargo build --release --target=${{ matrix.arch }}-unknown-${{ matrix.os }}
+      - name: Build
+        run: cargo build --all --release && strip target/release/Bedrock_Cracker && mv target/release/Bedrock_Cracker target/release/Bedrock_Cracker_amd64
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          asset_path: ./target/${{ matrix.arch }}-unknown-${{ matrix.os }}/release/bedrock_cracker
-          asset_name: bedrock_cracker-${{ matrix.os }}-${{ matrix.arch }}.exe
-          tag_name: latest
+          files: |
+            target/release/Bedrock_Cracker_amd64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-win:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Build
+        run: cargo build --all --release
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/release/Bedrock_Cracker.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-apple-darwin
+          default: true
+          override: true
+
+      - name: Build for mac
+        run: cargo build --all --release && strip target/release/Bedrock_Cracker && mv target/release/Bedrock_Cracker target/release/Bedrock_Cracker_darwin
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            target/release/PROJECT_NAME_darwin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
