@@ -3,6 +3,9 @@ Cracks nether seeds from bedrock. This works in 1.18 and upwards since bedrock b
 The overworld uses a different RNG so the cool math thats used here doesnt apply.
 
 ## Usage
+
+### !!!The windows build is currently broken!!!
+
 First download the binary for your system from [the releases page](https://github.com/19MisterX98/Nether_Bedrock_Cracker/releases/tag/latest).<br>
 Then collect bedrock positions from the nether floor or the nether roof. For formatting you can look at this [example file](https://github.com/19MisterX98/Nether_Bedrock_Cracker/blob/master/example_coords.txt). (Currently I dont support both at the same time but that is planned)
 <br>
