@@ -1,0 +1,12 @@
+[package]
+name = "bedrock_cracker"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+tokio = ["dep:tokio"]
+
+[dependencies]
+next_long_reverser = "0.1.0"
+java_random = "0.1.7"
+tokio = { version = "1.28", optional = true }
