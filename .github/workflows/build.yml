@@ -3,7 +3,7 @@ name: Rust Build and Publish
 on:
   push:
     branches:
-      - main
+      - gui
     tags:
       - '*'
 
