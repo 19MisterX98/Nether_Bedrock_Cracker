@@ -1,92 +1,98 @@
-name: Rust Build and Publish
+# Source
+# https://github.com/iced-rs/iced/blob/master/.github/workflows/build.yml
 
+name: Build
 on:
   push:
     branches:
       - gui
-    tags:
-      - '*'
-
-env:
-  CRATE_NAME: cracker_gui
-
 jobs:
-  build:
+  cracker_gui_linux:
     runs-on: ubuntu-latest
-
-    env:
-      PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig/
-
     steps:
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - uses: hecrj/setup-rust-action@v1
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+      - uses: actions/checkout@master
+      - name: Install dependencies
+        run: |
+          export DEBIAN_FRONTED=noninteractive
+          sudo apt-get -qq update
+          sudo apt-get install -y libgtk-3-dev
+      - name: Build cracker_gui binary
+        run: cargo build --verbose --profile release-opt --package cracker_gui
+      - name: Archive cracker_gui binary
+        uses: actions/upload-artifact@v1
         with:
-          profile: minimal
-          toolchain: stable
+          name: cracker_gui-x86_64-unknown-linux-gnu
+          path: target/release-opt/cracker_gui
+      - name: Pack cracker_gui .deb package
+        run: cargo deb --no-build --profile release-opt --package cracker_gui
+      - name: Rename cracker_gui .deb package
+        run: mv target/debian/*.deb target/debian/cracker_gui-x86_64-debian-linux-gnu.deb
+      - name: Archive cracker_gui .deb package
+        uses: actions/upload-artifact@v1
+        with:
+          name: cracker_gui-x86_64-debian-linux-gnu
+          path: target/debian/iced_cracker_gui-x86_64-debian-linux-gnu.deb
 
+  cracker_gui_windows:
+    runs-on: windows-latest
+    steps:
+      - uses: hecrj/setup-rust-action@v1
+      - uses: actions/checkout@master
+      - name: Enable static CRT linkage
+        run: |
+          mkdir .cargo
+          echo '[target.x86_64-pc-windows-msvc]' >> .cargo/config
+          echo 'rustflags = ["-Ctarget-feature=+crt-static"]' >> .cargo/config
+      - name: Run the application without starting the shell
+        run: |
+          sed -i '1 i\#![windows_subsystem = \"windows\"]' examples/cracker_gui/src/main.rs
+      - name: Build cracker_gui binary
+        run: cargo build --verbose --profile release-opt --package cracker_gui
+      - name: Archive cracker_gui binary
+        uses: actions/upload-artifact@v1
+        with:
+          name: cracker_gui-x86_64-pc-windows-msvc
+          path: target/release-opt/cracker_gui.exe
+
+  cracker_gui_macos:
+    runs-on: macOS-latest
+    steps:
+      - uses: hecrj/setup-rust-action@v1
+      - uses: actions/checkout@master
+      - name: Build cracker_gui binary
+        env:
+          MACOSX_DEPLOYMENT_TARGET: 10.14
+        run: cargo build --verbose --profile release-opt --package cracker_gui
+      - name: Open binary via double-click
+        run: chmod +x target/release-opt/cracker_gui
+      - name: Archive cracker_gui binary
+        uses: actions/upload-artifact@v1
+        with:
+          name: cracker_gui-x86_64-apple-darwin
+          path: target/release-opt/cracker_gui
+  cracker_gui_raspberry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hecrj/setup-rust-action@v1
+      - uses: actions/checkout@master
+      - name: Install dependencies
+        run: sudo apt-get install -y libgtk-3-dev
       - name: Install cross
         run: cargo install cross
-
-      - name: Install dependencies
-        run: sudo apt-get install -y libgtk-3-dev libglib2.0-dev
-
-      - name: Check out code
-        uses: actions/checkout@v2
-
-      - name: Build and publish binaries
-        run: |
-          cross build --target x86_64-unknown-linux-musl --release
-          cross build --target x86_64-pc-windows-gnu --release
-          cross build --target x86_64-apple-darwin --release
-          mv target/x86_64-unknown-linux-musl/release/$CRATE_NAME bedrock_cracker-linux
-          mv target/x86_64-pc-windows-gnu/release/$CRATE_NAME.exe bedrock_cracker-windows.exe
-          mv target/x86_64-apple-darwin/release/$CRATE_NAME bedrock_cracker-macos
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - name: Build cracker_gui binary for Raspberry Pi 3/4 (64 bits)
+        run: cross build --verbose --profile release-opt --package cracker_gui --target aarch64-unknown-linux-gnu
+      - name: Archive cracker_gui binary
+        uses: actions/upload-artifact@v1
         with:
-          name: bedrock_cracker-binaries
-          path: |
-            bedrock_cracker-linux
-            bedrock_cracker-windows.exe
-            bedrock_cracker-macos
-
-  create_release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: cracker_gui-aarch64-unknown-linux-gnu
+          path: target/aarch64-unknown-linux-gnu/release-opt/cracker_gui
+      - name: Build cracker_gui binary for Raspberry Pi 2/3/4 (32 bits)
+        run: cross build --verbose --profile release-opt --package cracker_gui --target armv7-unknown-linux-gnueabihf
+      - name: Archive cracker_gui binary
+        uses: actions/upload-artifact@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
-      - name: Upload binaries
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: |
-            ./bedrock_cracker-linux
-            ./bedrock_cracker-windows.exe
-            ./bedrock_cracker-macos
-          asset_name: |
-            bedrock_cracker-linux
-            bedrock_cracker-windows.exe
-            bedrock_cracker-macos
-          asset_content_type: |
-            application/octet-stream
-            application/octet-stream
-            application/octet-stream
+          name: cracker_gui-armv7-unknown-linux-gnueabihf
+          path: target/armv7-unknown-linux-gnueabihf/release-opt/cracker_gui
