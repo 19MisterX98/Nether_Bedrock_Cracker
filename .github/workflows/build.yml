@@ -26,16 +26,6 @@ jobs:
         with:
           name: cracker_gui-x86_64-unknown-linux-gnu
           path: target/release-opt/cracker_gui
-      - name: Pack cracker_gui .deb package
-        run: cargo deb --no-build --profile release-opt --package cracker_gui
-      - name: Rename cracker_gui .deb package
-        run: mv target/debian/*.deb target/debian/cracker_gui-x86_64-debian-linux-gnu.deb
-      - name: Archive cracker_gui .deb package
-        uses: actions/upload-artifact@v1
-        with:
-          name: cracker_gui-x86_64-debian-linux-gnu
-          path: target/debian/iced_cracker_gui-x86_64-debian-linux-gnu.deb
-
   cracker_gui_windows:
     runs-on: windows-latest
     steps:
@@ -73,26 +63,3 @@ jobs:
         with:
           name: cracker_gui-x86_64-apple-darwin
           path: target/release-opt/cracker_gui
-  cracker_gui_raspberry:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: hecrj/setup-rust-action@v1
-      - uses: actions/checkout@master
-      - name: Install dependencies
-        run: sudo apt-get install -y libgtk-3-dev
-      - name: Install cross
-        run: cargo install cross
-      - name: Build cracker_gui binary for Raspberry Pi 3/4 (64 bits)
-        run: cross build --verbose --profile release-opt --package cracker_gui --target aarch64-unknown-linux-gnu
-      - name: Archive cracker_gui binary
-        uses: actions/upload-artifact@v1
-        with:
-          name: cracker_gui-aarch64-unknown-linux-gnu
-          path: target/aarch64-unknown-linux-gnu/release-opt/cracker_gui
-      - name: Build cracker_gui binary for Raspberry Pi 2/3/4 (32 bits)
-        run: cross build --verbose --profile release-opt --package cracker_gui --target armv7-unknown-linux-gnueabihf
-      - name: Archive cracker_gui binary
-        uses: actions/upload-artifact@v1
-        with:
-          name: cracker_gui-armv7-unknown-linux-gnueabihf
-          path: target/armv7-unknown-linux-gnueabihf/release-opt/cracker_gui
