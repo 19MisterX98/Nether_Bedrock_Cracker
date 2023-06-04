@@ -4,3 +4,13 @@ members = [
     "bedrock_cracker",
     "cracker_gui",
 ]
+
+[profile.release-opt]
+inherits = "release"
+codegen-units = 1
+debug = false
+lto = true
+incremental = false
+opt-level = 3
+overflow-checks = false
+strip = "debuginfo"
