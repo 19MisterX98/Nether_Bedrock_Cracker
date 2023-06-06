@@ -80,7 +80,12 @@ jobs:
 
       - uses: actions/download-artifact@v3
         with:
-          path: artifacts
+          path: artifacts-dl
+
+      - name: Move files from sub folders into one folder
+        run: |
+          mkdir artifacts
+          find artifacts-dl/ -type f -exec mv -t artifacts/ {} +
 
       - name: Release
         uses: softprops/action-gh-release@v1
