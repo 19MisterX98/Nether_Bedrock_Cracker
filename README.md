@@ -4,7 +4,7 @@ The overworld uses a different RNG so the cool math that's used here doesn't app
 
 ## Usage
 
-First download the binary for your system from [the releases page](https://github.com/19MisterX98/Nether_Bedrock_Cracker/releases/tag/latest).<br>
+First download the binary for your system from [the releases page](https://github.com/19MisterX98/Nether_Bedrock_Cracker/releases/).<br>
 Open it and collect bedrock positions from the nether floor or the nether roof.
 After gathering data you can either just run the cracker and show seeds in the gui or run it saving found seeds to a file
 <br>
