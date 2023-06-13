@@ -22,8 +22,8 @@ impl BlockType {
     pub const ALL: [BlockType; 2] = [BlockType::BEDROCK, BlockType::OTHER];
 }
 
-impl std::fmt::Display for BlockType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for BlockType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -66,6 +66,16 @@ impl Block {
         }
 
         (floor_blocks, roof_blocks)
+    }
+}
+
+impl fmt::Display for Block {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {} {}",
+            self.x, self.y, self.z, self.block_type
+        )
     }
 }
 

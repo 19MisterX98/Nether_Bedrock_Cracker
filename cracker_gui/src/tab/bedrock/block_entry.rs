@@ -4,7 +4,6 @@ use iced_native::row;
 use iced_native::theme::TextInput;
 use iced_native::widget::{button, pick_list, text_input};
 use bedrock_cracker::{Block as BlockInfo, BlockType};
-use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -166,15 +165,5 @@ impl From<&str> for Block {
             block.block_type = BlockType::OTHER;
         }
         block
-    }
-}
-
-impl fmt::Display for Block {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} {} {} {}",
-            self.x.text, self.y.text, self.z.text, self.block_type
-        )
     }
 }

@@ -60,8 +60,8 @@ impl ApplicationTab for BdrkTab {
 
     fn save_config(&self) -> String {
         let mut content = String::new();
-        for block in self.blocks.iter() {
-            content.push_str(&format!("{}", block))
+        for block in self.valid_blocks.iter() {
+            content.push_str(&format!("{}\n", block))
         }
         content
     }
