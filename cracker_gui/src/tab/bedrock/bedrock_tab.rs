@@ -6,27 +6,28 @@ use async_std::task::spawn_blocking;
 use iced::futures::io::BufWriter;
 use iced::futures::{AsyncWriteExt, SinkExt};
 use iced::{futures, Element, Length};
-use iced_native::widget::{column, text};
-use iced_native::{subscription, Padding, Subscription};
-use bedrock_cracker::{
-    estimate_result_amount, search_bedrock_pattern, Block as BlockInfo, CrackProgress,
-};
+use iced_native::widget::{column, pick_list, text};
+use iced_native::{subscription, Padding, Subscription, row};
+use bedrock_cracker::{CrackProgress, estimate_result_amount, search_bedrock_pattern};
+use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
-use iced::alignment::Horizontal;
 use iced::widget::{Column, Scrollable};
 use std::collections::HashSet;
 use tokio::sync::mpsc::channel;
+use bedrock_cracker::raw_data::mode::CrackerMode;
 
 #[derive(Debug, Default)]
 pub struct BdrkTab {
     estimated_seeds: u64,
     blocks: Vec<Block>,
     valid_blocks: Vec<BlockInfo>,
+    mode: CrackerMode,
 }
 
 #[derive(Debug, Clone)]
 pub enum BdrkMessage {
     Block(usize, BlockMessage),
+    CrackerMode(CrackerMode)
 }
 
 impl From<TabMessage> for BdrkMessage {
@@ -45,6 +46,7 @@ impl ApplicationTab for BdrkTab {
             estimated_seeds: (1 << 48),
             blocks: vec![Block::new()],
             valid_blocks: Vec::new(),
+            mode: CrackerMode::Normal,
         }
     }
 
@@ -79,6 +81,10 @@ impl ApplicationTab for BdrkTab {
                     self.update_blocks();
                 }
             }
+            BdrkMessage::CrackerMode(mode) => {
+                self.mode = mode;
+                self.update_blocks()
+            }
         }
     }
 
@@ -87,8 +93,14 @@ impl ApplicationTab for BdrkTab {
             "Naively estimated results: {} seeds",
             self.estimated_seeds
         ))
-        .width(Length::Fill)
-        .horizontal_alignment(Horizontal::Center);
+            .width(Length::Fill);
+        let mode_label = text("mode: ");
+        let crack_mode = pick_list(
+            &CrackerMode::ALL[..],
+            Some(self.mode),
+            BdrkMessage::CrackerMode,
+        );
+        let top_bar = row![estimate, mode_label, crack_mode];
         let coords: Element<_> = column(
             self.blocks
                 .iter()
@@ -103,7 +115,7 @@ impl ApplicationTab for BdrkTab {
         .spacing(5)
         .into();
         let coords = Scrollable::new(coords).height(Length::Fill);
-        let view: Element<_> = Column::with_children(vec![estimate.into(), coords.into()]).into();
+        let view: Element<_> = Column::with_children(vec![top_bar.into(), coords.into()]).into();
         view.map(TabMessage::BdrkMessage)
     }
 

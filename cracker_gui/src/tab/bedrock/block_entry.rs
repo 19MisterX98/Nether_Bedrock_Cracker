@@ -3,7 +3,9 @@ use iced::{widget, Element, Renderer, Theme};
 use iced_native::row;
 use iced_native::theme::TextInput;
 use iced_native::widget::{button, pick_list, text_input};
-use bedrock_cracker::{Block as BlockInfo, BlockType};
+use bedrock_cracker::raw_data::block_type::BlockType;
+use bedrock_cracker::raw_data::block::Block as BlockInfo;
+
 
 #[derive(Debug, Clone)]
 pub struct Block {
