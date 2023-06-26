@@ -19,7 +19,7 @@ impl fmt::Display for CrackerMode {
             "{}",
             match self {
                 CrackerMode::Normal => "Normal",
-                CrackerMode::Paper1_18 => "PaperMC 1.18",
+                CrackerMode::Paper1_18 => "PaperMC < 1.19.2-213",
             }
         )
     }

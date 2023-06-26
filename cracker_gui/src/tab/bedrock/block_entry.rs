@@ -136,9 +136,9 @@ impl Block {
         &self.x.text == "" && self.y.text == "" && self.z.text == ""
     }
 
-    pub fn get_pos(&self) -> Option<BlockInfo> {
+    pub fn is_valid_pos(&self) -> Option<BlockInfo> {
         match (self.x.num, self.y.num, self.z.num) {
-            (Some(x), Some(y), Some(z)) => Some(BlockInfo::new(x, y, z, self.block_type.clone())),
+            (Some(x), Some(y), Some(z)) => Some(BlockInfo::new(x,y,z,self.block_type)),
             _ => None,
         }
     }

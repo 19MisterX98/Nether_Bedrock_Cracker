@@ -11,6 +11,7 @@ use std::{thread};
 use crate::block_data::{BlockFilter, get_filter_power};
 use crate::layer::{create_filter_tree};
 use crate::raw_data::block::Block;
+use crate::raw_data::mode::CrackerMode;
 use crate::raw_data::sender::Sender;
 
 const MASK48: u64 = 0xFFFF_FFFF_FFFF;
@@ -21,12 +22,14 @@ const CHUNK_SIZE: u64 = (1 << 12) * (1 << 25); // interrupts every 2^25 seeds
 
 /// this estimate is naive
 pub fn estimate_result_amount(blocks: &[Block]) -> u64 {
-    let filters: Vec<_> = blocks.iter().map(BlockFilter::from).collect();
+    let filters: Vec<_> = blocks.iter()
+        .map(|block | BlockFilter::from(block, CrackerMode::Normal))
+        .collect();
     get_filter_power(&filters)
 }
 
-pub fn search_bedrock_pattern<S: Sender + 'static>(blocks: &[Block], thread_count: u64, sender: S) {
-    let checks = create_filter_tree(blocks, sender.clone());
+pub fn search_bedrock_pattern<S: Sender + 'static>(blocks: &[Block], thread_count: u64, mode: CrackerMode, sender: S) {
+    let checks = create_filter_tree(blocks, mode, sender.clone());
 
     for thread in 0..thread_count {
         let mut start_bits = (thread * (1 << 36)) / thread_count;

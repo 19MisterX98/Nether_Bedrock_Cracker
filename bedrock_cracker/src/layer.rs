@@ -4,17 +4,19 @@ use next_long_reverser::get_next_long;
 use crate::{CrackProgress, FLOOR_HASH, ROOF_HASH};
 use crate::block_data::{BlockFilter, CheckObject, get_filter_power};
 use crate::raw_data::block::Block;
+use crate::raw_data::mode::CrackerMode;
 use crate::raw_data::sender::Sender;
 
-fn split_floor_roof(blocks: &[Block]) -> (Vec<BlockFilter>, Vec<BlockFilter>) {
+fn split_floor_roof(blocks: &[Block], mode: CrackerMode) -> (Vec<BlockFilter>, Vec<BlockFilter>) {
     let mut floor_blocks = vec![];
     let mut roof_blocks = vec![];
 
     for block in blocks.iter() {
+        let filter = BlockFilter::from(block, mode);
         if block.y < 64 {
-            floor_blocks.push(block.into());
+            floor_blocks.push(filter);
         } else {
-            roof_blocks.push(block.into());
+            roof_blocks.push(filter);
         }
     }
 
@@ -37,9 +39,9 @@ struct CrossComparison<S: Sender> {
     secondary_hash: u64,
 }
 
-pub fn create_filter_tree<S: Sender>(blocks: &[Block], tx: S) -> Layer<S> {
+pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, tx: S) -> Layer<S> {
 
-    let (floor_blocks, roof_blocks) = split_floor_roof(blocks);
+    let (floor_blocks, roof_blocks) = split_floor_roof(blocks, mode);
 
     let floor_resulting_seeds = get_filter_power(&floor_blocks);
     let roof_resulting_seeds = get_filter_power(&roof_blocks);
@@ -272,14 +274,14 @@ mod tests {
         BLOCKS
             .iter()
             .filter(|block| block.y > 5)
-            .map(|block| BlockFilter::from(block).create_check(10))
+            .map(|block| BlockFilter::from(block, CrackerMode::Normal).create_check(10))
             .filter(|check| check.check(ROOF_SEED & 0xFFFF_FFFF_FC00))
             .for_each(|check| panic!("roof bedrock failed: {:#?}", check));
 
         BLOCKS
             .iter()
             .filter(|block| block.y < 5)
-            .map(|block| BlockFilter::from(block).create_check(10))
+            .map(|block| BlockFilter::from(block, CrackerMode::Normal).create_check(10))
             .filter(|check| check.check(FLOOR_SEED & 0xFFFF_FFFF_FC00))
             .for_each(|check| panic!("floor bedrock failed: {:#?}", check));
     }
@@ -288,7 +290,7 @@ mod tests {
     fn test_filter_tree() {
         let (sender, receiver) = mpsc::channel();
 
-        let layers = create_filter_tree(&BLOCKS, sender);
+        let layers = create_filter_tree(&BLOCKS, CrackerMode::Normal, sender);
 
         // the cracker uses roof data as the primary filter if it has equal info from floor and roof
         layers.run_checks(ROOF_SEED & 0xFFFF_FFFF_F000);

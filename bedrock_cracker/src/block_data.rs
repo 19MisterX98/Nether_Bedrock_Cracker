@@ -2,12 +2,7 @@ use java_random::JAVA_LCG;
 use crate::{MASK48};
 use crate::raw_data::block::Block;
 use crate::raw_data::block_type::BlockType;
-
-impl From<&Block> for BlockFilter {
-    fn from(b: &Block) -> Self {
-        Self::new(b.x, b.y, b.z, b.block_type)
-    }
-}
+use crate::raw_data::mode::CrackerMode;
 
 #[derive(Clone, Debug)]
 pub struct BlockFilter {
@@ -18,9 +13,16 @@ pub struct BlockFilter {
 }
 
 impl BlockFilter {
-    fn new(x: i32, y: i32, z: i32, block_type: BlockType) -> Self {
-        let pos_hash = BlockFilter::hashcode(x, y, z) ^ JAVA_LCG.multiplier;
+    pub fn from(b: &Block, mode: CrackerMode) -> BlockFilter {
+        Self::new(b.x, b.y, b.z, b.block_type, mode)
+    }
+
+    fn new(x: i32, mut y: i32, z: i32, block_type: BlockType, mode: CrackerMode) -> Self {
         let (lower_bound, upper_bound) = Self::bounds(y, block_type);
+        if mode == CrackerMode::Paper1_18 {
+            y = if y > 5 { 122 } else { 0 }
+        }
+        let pos_hash = BlockFilter::hashcode(x, y, z) ^ JAVA_LCG.multiplier;
 
         Self {
             pos_hash,
@@ -30,7 +32,7 @@ impl BlockFilter {
         }
     }
 
-    pub(crate) fn create_check(&mut self, lower_bits: u64) -> CheckObject {
+    pub fn create_check(&mut self, lower_bits: u64) -> CheckObject {
         let lower_bits_mask = (1 << lower_bits) - 1;
         self.check_with_bits(lower_bits);
         CheckObject::new(
@@ -42,7 +44,7 @@ impl BlockFilter {
     }
 
     //Figure out how many seeds an operation filters
-    pub(crate) fn discarded_seeds(&self, lower_bits: u64) -> f64 {
+    pub fn discarded_seeds(&self, lower_bits: u64) -> f64 {
         let lower_bits_mask = (1 << lower_bits) - 1;
         let bound = self.bound() + lower_bits_mask * JAVA_LCG.multiplier;
         let success_chance = bound as f64 / self.possible_range as f64;
@@ -127,7 +129,7 @@ impl CheckObject {
         }
     }
 
-    pub(crate) fn check(&self, upper_bits: u64) -> bool {
+    pub fn check(&self, upper_bits: u64) -> bool {
         ((upper_bits ^ self.pos_hash)
             .wrapping_mul(JAVA_LCG.multiplier)
             .wrapping_add(self.offset)
@@ -151,10 +153,11 @@ mod tests {
     use java_random::JAVA_LCG;
     use crate::block_data::BlockFilter;
     use crate::raw_data::block_type::BlockType;
+    use crate::raw_data::mode::CrackerMode;
 
     #[test]
     fn test_hashcode() {
-        let block = BlockFilter::new(-98, 4, -469, BlockType::BEDROCK);
+        let block = BlockFilter::new(-98, 4, -469, BlockType::BEDROCK, CrackerMode::Normal);
         assert_eq!(block.pos_hash, 99261249361405 ^ JAVA_LCG.multiplier)
     }
 }

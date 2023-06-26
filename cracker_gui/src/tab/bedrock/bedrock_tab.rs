@@ -12,8 +12,8 @@ use bedrock_cracker::{CrackProgress, estimate_result_amount, search_bedrock_patt
 use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
 use iced::widget::{Column, Scrollable};
-use std::collections::HashSet;
 use tokio::sync::mpsc::channel;
+use bedrock_cracker::raw_data::block_type::BlockType;
 use bedrock_cracker::raw_data::mode::CrackerMode;
 
 #[derive(Debug, Default)]
@@ -125,7 +125,7 @@ impl ApplicationTab for BdrkTab {
             CrackerState::Starting(file_output) => {
                 let threads = threads.parse::<u64>().unwrap_or(1);
 
-                crack(&self.valid_blocks, file_output, threads)
+                crack(&self.valid_blocks, file_output, threads, self.mode)
             }
             CrackerState::Running => subscription::run_with_id(
                 std::any::TypeId::of::<Unique>(),
@@ -138,7 +138,7 @@ impl ApplicationTab for BdrkTab {
 impl BdrkTab {
     fn update_blocks(&mut self) {
         self.add_entry();
-        self.update_duplicates();
+        self.update_invalid_states();
         self.estimated_seeds = estimate_result_amount(&self.valid_blocks);
     }
 
@@ -152,17 +152,40 @@ impl BdrkTab {
         }
     }
 
-    fn update_duplicates(&mut self) {
-        let mut valid_blocks = HashSet::new();
-        for block in self.blocks.iter_mut() {
-            let is_duplicate = if let Some(pos) = block.get_pos() {
-                !valid_blocks.insert(pos)
-            } else {
-                false
-            };
-            block.set_duplicate(is_duplicate);
+    /// check for multiple blocks in the same position etc...
+    fn update_invalid_states(&mut self) {
+        let mut valid_blocks: Vec<BlockInfo> = vec![];
+        for gui_block in self.blocks.iter_mut() {
+            if let Some(block) = gui_block.is_valid_pos() {
+                let invalid = Self::check_invalid(&block, &valid_blocks, self.mode);
+                if !invalid {
+                    valid_blocks.push(block);
+                }
+                gui_block.set_duplicate(invalid);
+            }
         }
-        self.valid_blocks = valid_blocks.into_iter().collect();
+        self.valid_blocks = valid_blocks;
+    }
+
+    fn check_invalid(block: &BlockInfo, valid_blocks: &[BlockInfo], mode: CrackerMode) -> bool {
+        for valid_block in valid_blocks.iter() {
+            if block.x == valid_block.x &&
+                block.z == valid_block.z &&
+                (block.y > 5) == (valid_block.y > 5)
+            {
+                if block.y == valid_block.y { return true }
+                if mode == CrackerMode::Paper1_18 {
+                    if block.block_type == valid_block.block_type { return true }
+                    let mut y1 = valid_block.y;
+                    let mut y2 = block.y;
+                    if (y1 > 5) ^ (block.block_type == BlockType::OTHER) {
+                        (y1, y2) = (y2, y1);
+                    }
+                    if y1 <= y2 { return true }
+                }
+            }
+        }
+        false
     }
 }
 
@@ -172,6 +195,7 @@ pub fn crack(
     blocks: &Vec<BlockInfo>,
     file_output: &Option<String>,
     threads: u64,
+    mode: CrackerMode,
 ) -> Subscription<CrackerEvent> {
     let file_output = file_output.clone();
     let blocks: Vec<_> = blocks.clone();
@@ -189,7 +213,7 @@ pub fn crack(
 
             let (sender, mut receiver) = channel(100);
 
-            spawn_blocking(move || search_bedrock_pattern(&blocks, threads, sender));
+            spawn_blocking(move || search_bedrock_pattern(&blocks, threads, mode, sender));
 
             let mut seeds = vec![];
             while let Some(pl_event) = receiver.recv().await {
@@ -224,5 +248,47 @@ async fn create_file_writer(file: &Option<String>) -> Option<BufWriter<File>> {
             let file = File::create(file).await.ok()?;
             Some(BufWriter::new(file))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_check_invalid() {
+        let block = BlockInfo::new(1,1,1,BlockType::BEDROCK);
+        let mut valid_blocks = vec![
+            BlockInfo::new(1,2,1,BlockType::BEDROCK),
+            BlockInfo::new(1,3,1,BlockType::BEDROCK)
+        ];
+        //no duplicates -> block is valid
+        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Normal));
+
+        //duplicates -> block is invalid
+        valid_blocks.push(block.clone());
+        assert!(BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Normal));
+    }
+
+    #[test]
+    fn test_check_invalid_paper() {
+        let mut block = BlockInfo::new(1, 1, 1, BlockType::BEDROCK);
+        let valid_blocks = vec![
+            BlockInfo::new(1,2,1,BlockType::OTHER)
+        ];
+        //valid position
+        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+
+        //bedrock ont op of other is an invalid placement
+        block.y = 3;
+        assert!(BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+
+        //Two of the same type in the same column is redundant
+        block.block_type = BlockType::OTHER;
+        assert!(BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+
+        //valid on opposite sites
+        block.y = 123;
+        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
     }
 }
