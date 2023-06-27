@@ -21,6 +21,6 @@ async-std = "1.0"
 voronator = "0.2"
 directories-next = "2.0"
 num_cpus = "1.0"
-rfd = "0.11"
+rfd = { version = "0.11", default-features = false, features = ["xdg-portal"]}
 bedrock_cracker = { path = "../bedrock_cracker", features = ["tokio"] }
 
