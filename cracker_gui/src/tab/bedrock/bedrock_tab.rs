@@ -14,7 +14,7 @@ use bedrock_cracker::raw_data::block::Block as BlockInfo;
 use iced::widget::{Column, Scrollable};
 use tokio::sync::mpsc::channel;
 use bedrock_cracker::raw_data::block_type::BlockType;
-use bedrock_cracker::raw_data::mode::CrackerMode;
+use bedrock_cracker::raw_data::modes::{CrackerMode, OutputMode};
 
 #[derive(Debug, Default)]
 pub struct BdrkTab {
@@ -22,12 +22,14 @@ pub struct BdrkTab {
     blocks: Vec<Block>,
     valid_blocks: Vec<BlockInfo>,
     mode: CrackerMode,
+    output_mode: OutputMode,
 }
 
 #[derive(Debug, Clone)]
 pub enum BdrkMessage {
     Block(usize, BlockMessage),
-    CrackerMode(CrackerMode)
+    CrackerMode(CrackerMode),
+    OutputMode(OutputMode),
 }
 
 impl From<TabMessage> for BdrkMessage {
@@ -47,6 +49,7 @@ impl ApplicationTab for BdrkTab {
             blocks: vec![Block::new()],
             valid_blocks: Vec::new(),
             mode: CrackerMode::Normal,
+            output_mode: OutputMode::WorldSeed,
         }
     }
 
@@ -85,6 +88,9 @@ impl ApplicationTab for BdrkTab {
                 self.mode = mode;
                 self.update_blocks()
             }
+            BdrkMessage::OutputMode(mode) => {
+                self.output_mode = mode;
+            }
         }
     }
 
@@ -94,13 +100,17 @@ impl ApplicationTab for BdrkTab {
             self.estimated_seeds
         ))
             .width(Length::Fill);
-        let mode_label = text("mode: ");
         let crack_mode = pick_list(
             &CrackerMode::ALL[..],
             Some(self.mode),
             BdrkMessage::CrackerMode,
         );
-        let top_bar = row![estimate, mode_label, crack_mode];
+        let output_mode = pick_list(
+            &OutputMode::ALL[..],
+            Some(self.output_mode),
+            BdrkMessage::OutputMode,
+        );
+        let top_bar = row![estimate, crack_mode, output_mode];
         let coords: Element<_> = column(
             self.blocks
                 .iter()
@@ -125,7 +135,7 @@ impl ApplicationTab for BdrkTab {
             CrackerState::Starting(file_output) => {
                 let threads = threads.parse::<u64>().unwrap_or(1);
 
-                crack(&self.valid_blocks, file_output, threads, self.mode)
+                crack(&self.valid_blocks, file_output, threads, self.mode, self.output_mode)
             }
             CrackerState::Running => subscription::run_with_id(
                 std::any::TypeId::of::<Unique>(),
@@ -196,6 +206,7 @@ pub fn crack(
     file_output: &Option<String>,
     threads: u64,
     mode: CrackerMode,
+    output_mode: OutputMode,
 ) -> Subscription<CrackerEvent> {
     let file_output = file_output.clone();
     let blocks: Vec<_> = blocks.clone();
@@ -213,7 +224,7 @@ pub fn crack(
 
             let (sender, mut receiver) = channel(100);
 
-            spawn_blocking(move || search_bedrock_pattern(&blocks, threads, mode, sender));
+            spawn_blocking(move || search_bedrock_pattern(&blocks, threads, mode, output_mode, sender));
 
             let mut seeds = vec![];
             while let Some(pl_event) = receiver.recv().await {

@@ -2,7 +2,7 @@ use java_random::JAVA_LCG;
 use crate::{MASK48};
 use crate::raw_data::block::Block;
 use crate::raw_data::block_type::BlockType;
-use crate::raw_data::mode::CrackerMode;
+use crate::raw_data::modes::CrackerMode;
 
 #[derive(Clone, Debug)]
 pub struct BlockFilter {
@@ -153,7 +153,7 @@ mod tests {
     use java_random::JAVA_LCG;
     use crate::block_data::BlockFilter;
     use crate::raw_data::block_type::BlockType;
-    use crate::raw_data::mode::CrackerMode;
+    use crate::raw_data::modes::CrackerMode;
 
     #[test]
     fn test_hashcode() {

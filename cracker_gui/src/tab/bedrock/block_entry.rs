@@ -162,7 +162,7 @@ impl From<&str> for Block {
             .z
             .update(components.next().unwrap_or_default().to_string());
         if components.next().unwrap_or_default().to_ascii_lowercase()
-            == format!("{}", BlockType::OTHER)
+            == format!("{}", BlockType::OTHER).to_ascii_lowercase()
         {
             block.block_type = BlockType::OTHER;
         }

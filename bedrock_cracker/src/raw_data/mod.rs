@@ -1,4 +1,4 @@
 pub mod block_type;
-pub mod mode;
+pub mod modes;
 pub mod block;
 pub mod sender;

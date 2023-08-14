@@ -4,7 +4,7 @@ use next_long_reverser::get_next_long;
 use crate::{CrackProgress, FLOOR_HASH, ROOF_HASH};
 use crate::block_data::{BlockFilter, CheckObject, get_filter_power};
 use crate::raw_data::block::Block;
-use crate::raw_data::mode::CrackerMode;
+use crate::raw_data::modes::{CrackerMode, OutputMode};
 use crate::raw_data::sender::Sender;
 
 fn split_floor_roof(blocks: &[Block], mode: CrackerMode) -> (Vec<BlockFilter>, Vec<BlockFilter>) {
@@ -37,9 +37,10 @@ struct CrossComparison<S: Sender> {
     //java hashes for minecraft:bedrock_floor and minecraft:bedrock_roof
     primary_hash: u64,
     secondary_hash: u64,
+    output: OutputMode,
 }
 
-pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, tx: S) -> Layer<S> {
+pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, output: OutputMode, tx: S) -> Layer<S> {
 
     let (floor_blocks, roof_blocks) = split_floor_roof(blocks, mode);
 
@@ -77,7 +78,7 @@ pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, tx: S)
         .collect();
 
     // add checks for the other surface
-    let final_check = CrossComparison::new(secondary_filter, tx, is_floor_primary_filter);
+    let final_check = CrossComparison::new(secondary_filter, tx, is_floor_primary_filter, output);
     layers
         .last_mut()
         .map(|layer| layer.next_operation = NextOperation::CrossComparison(final_check));
@@ -155,6 +156,7 @@ impl<S: Sender> CrossComparison<S> {
         blocks: Vec<BlockFilter>,
         sender: S,
         is_floor_primary_filter: bool,
+        output: OutputMode,
     ) -> CrossComparison<S> {
         let checks = blocks
             .into_iter()
@@ -172,6 +174,7 @@ impl<S: Sender> CrossComparison<S> {
             checks,
             primary_hash,
             secondary_hash,
+            output,
         }
     }
 
@@ -198,17 +201,18 @@ impl<S: Sender> CrossComparison<S> {
                 self.check(secondary_seed)
             })
             .flat_map(|bedrock_seed| {
-                // reverse to world seed & mask48
+                // reverse to world seed & mask48 aka structure seed
                 reverse_next_long(bedrock_seed)
             })
-            .flat_map(|world_seed_truncated| {
-                // reverse again and then go forwards to get all bits
-                reverse_next_long(world_seed_truncated)
-            })
-            .map(|seed| next_long(seed))
-            .for_each(|world_seed| {
-                // send results
-                self.sender.send(CrackProgress::Seed(world_seed));
+            .for_each(|structure_seed| {
+                if self.output == OutputMode::WorldSeed {
+                    for prev_seed in reverse_next_long(structure_seed) {
+                        let world_seed = next_long(prev_seed);
+                        self.sender.send(CrackProgress::Seed(world_seed));
+                    }
+                } else {
+                    self.sender.send(CrackProgress::Seed(structure_seed));
+                }
             });
     }
 }
@@ -290,7 +294,7 @@ mod tests {
     fn test_filter_tree() {
         let (sender, receiver) = mpsc::channel();
 
-        let layers = create_filter_tree(&BLOCKS, CrackerMode::Normal, sender);
+        let layers = create_filter_tree(&BLOCKS, CrackerMode::Normal, OutputMode::WorldSeed, sender);
 
         // the cracker uses roof data as the primary filter if it has equal info from floor and roof
         layers.run_checks(ROOF_SEED & 0xFFFF_FFFF_F000);
