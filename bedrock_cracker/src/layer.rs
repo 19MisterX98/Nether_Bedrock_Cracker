@@ -103,8 +103,11 @@ pub struct Layer<S: Sender> {
 }
 
 impl<S: Sender> Layer<S> {
-    fn new(lower_bits: u64, checks: Vec<CheckObject>) -> Self {
+    fn new(lower_bits: u64, mut checks: Vec<CheckObject>) -> Self {
         let split: u64 = 1 << (lower_bits.saturating_sub(1));
+        while checks.len() % 8 != 0 {
+          checks.push(CheckObject::filler())
+        }
         Self {
             checks,
             split,
@@ -112,10 +115,15 @@ impl<S: Sender> Layer<S> {
         }
     }
 
+    #[inline(always)]
     pub fn run_checks(&self, upper_bits: u64) {
-        if self.checks.iter().any(|check| check.check(upper_bits)) {
-            return;
+        let mut chunks = self.checks.chunks_exact(8);
+        while let Some(chunk) = chunks.next() {
+            if chunk.iter().any(|check| check.check(upper_bits)) {
+                return;
+            }
         }
+
         use std::borrow::Borrow;
         match self.next_operation.borrow() {
             NextOperation::Layer(layer) => {

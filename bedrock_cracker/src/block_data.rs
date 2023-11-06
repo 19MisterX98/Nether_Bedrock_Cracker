@@ -129,12 +129,21 @@ impl CheckObject {
         }
     }
 
+    #[inline(always)]
     pub fn check(&self, upper_bits: u64) -> bool {
         ((upper_bits ^ self.pos_hash)
             .wrapping_mul(JAVA_LCG.multiplier)
             .wrapping_add(self.offset)
             & MASK48)
             < self.condition
+    }
+
+    pub fn filler() -> CheckObject {
+        Self {
+            pos_hash: 0,
+            offset: 0,
+            condition: 0, // check() will never be true
+        }
     }
 }
 
@@ -151,7 +160,8 @@ pub fn get_filter_power(filters: &[BlockFilter]) -> u64 {
 #[cfg(test)]
 mod tests {
     use java_random::JAVA_LCG;
-    use crate::block_data::BlockFilter;
+    use crate::block_data::{BlockFilter, CheckObject};
+    use crate::MASK48;
     use crate::raw_data::block_type::BlockType;
     use crate::raw_data::modes::CrackerMode;
 
@@ -159,5 +169,10 @@ mod tests {
     fn test_hashcode() {
         let block = BlockFilter::new(-98, 4, -469, BlockType::BEDROCK, CrackerMode::Normal);
         assert_eq!(block.pos_hash, 99261249361405 ^ JAVA_LCG.multiplier)
+    }
+
+    #[test]
+    fn test_filler_check() {
+        assert!(!CheckObject::filler().check(MASK48))
     }
 }
