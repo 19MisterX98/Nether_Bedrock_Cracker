@@ -108,7 +108,7 @@ impl BlockFilter {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CheckObject {
     pos_hash: u64,
     condition: u64,
@@ -136,14 +136,6 @@ impl CheckObject {
             .wrapping_add(self.offset)
             & MASK48)
             < self.condition
-    }
-
-    pub fn filler() -> CheckObject {
-        Self {
-            pos_hash: 0,
-            offset: 0,
-            condition: 0, // check() will never be true
-        }
     }
 }
 

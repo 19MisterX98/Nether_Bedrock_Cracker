@@ -1,4 +1,5 @@
-use std::fmt;
+use std::{array, fmt};
+
 use java_random::{JAVA_LCG, Random};
 use next_long_reverser::get_next_long;
 use crate::{CrackProgress, FLOOR_HASH, ROOF_HASH};
@@ -79,9 +80,9 @@ pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, output
 
     // add checks for the other surface
     let final_check = CrossComparison::new(secondary_filter, tx, is_floor_primary_filter, output);
-    layers
-        .last_mut()
-        .map(|layer| layer.next_operation = NextOperation::CrossComparison(final_check));
+    if let Some(layer) = layers.last_mut() {
+        layer.next_operation = NextOperation::CrossComparison(final_check);
+    }
 
     layers
         .into_iter()
@@ -97,17 +98,25 @@ pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, output
 
 #[derive(Debug, Clone)]
 pub struct Layer<S: Sender> {
-    checks: Vec<CheckObject>,
+    checks: Vec<[CheckObject; 8]>,
     split: u64,
     next_operation: NextOperation<S>,
 }
 
 impl<S: Sender> Layer<S> {
-    fn new(lower_bits: u64, mut checks: Vec<CheckObject>) -> Self {
+    fn new(lower_bits: u64, checks: Vec<CheckObject>) -> Self {
         let split: u64 = 1 << (lower_bits.saturating_sub(1));
-        while checks.len() % 8 != 0 {
-          checks.push(CheckObject::filler())
-        }
+        let checks: Vec<[CheckObject; 8]> = checks
+            .chunks(8)
+            .map(|chunk|
+                array::from_fn(|i|
+                    chunk.get(i)
+                        .cloned()
+                        .unwrap_or_default()//Default CheckObjects will always pass
+                )
+            )
+            .collect();
+
         Self {
             checks,
             split,
@@ -117,11 +126,8 @@ impl<S: Sender> Layer<S> {
 
     #[inline(always)]
     pub fn run_checks(&self, upper_bits: u64) {
-        let mut chunks = self.checks.chunks_exact(8);
-        while let Some(chunk) = chunks.next() {
-            if chunk.iter().any(|check| check.check(upper_bits)) {
-                return;
-            }
+        if self.checks.iter().flatten().any(|check| check.check(upper_bits)) {
+            return;
         }
 
         use std::borrow::Borrow;
