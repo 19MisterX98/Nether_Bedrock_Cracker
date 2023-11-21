@@ -149,7 +149,7 @@ impl BdrkTab {
     fn update_blocks(&mut self) {
         self.add_entry();
         self.update_invalid_states();
-        self.estimated_seeds = estimate_result_amount(&self.valid_blocks);
+        self.estimated_seeds = estimate_result_amount(&self.valid_blocks).max(1);
     }
 
     fn add_entry(&mut self) {
