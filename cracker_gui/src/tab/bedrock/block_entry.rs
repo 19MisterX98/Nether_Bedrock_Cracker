@@ -1,8 +1,7 @@
 use crate::tab::input_error_style::TextInputErrorStyle;
-use iced::{widget, Element, Renderer, Theme};
-use iced_native::row;
-use iced_native::theme::TextInput;
-use iced_native::widget::{button, pick_list, text_input};
+use iced::{widget, Element};
+use iced::theme::TextInput;
+use iced::widget::{button, pick_list, row, text_input};
 use bedrock_cracker::raw_data::block_type::BlockType;
 use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
@@ -62,7 +61,7 @@ impl Coord {
         last: bool,
         duplicate: bool,
         callback: F,
-    ) -> widget::TextInput<'a, BlockMessage, Renderer<Theme>>
+    ) -> widget::TextInput<'a, BlockMessage>
     where
         F: 'a + Fn(String) -> BlockMessage,
     {

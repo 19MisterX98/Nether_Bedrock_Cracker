@@ -5,13 +5,11 @@ use async_std::fs::File;
 use async_std::task::spawn_blocking;
 use iced::futures::io::BufWriter;
 use iced::futures::{AsyncWriteExt, SinkExt};
-use iced::{futures, Element, Length};
-use iced_native::widget::{column, pick_list, text};
-use iced_native::{subscription, Padding, Subscription, row};
+use iced::{futures, Element, Length, Padding, Subscription, subscription};
 use bedrock_cracker::{CrackProgress, estimate_result_amount, search_bedrock_pattern};
 use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
-use iced::widget::{Column, Scrollable};
+use iced::widget::{Column, column, pick_list, row, Scrollable, text};
 use tokio::sync::mpsc::channel;
 use bedrock_cracker::raw_data::block_type::BlockType;
 use bedrock_cracker::raw_data::modes::{CrackerMode, OutputMode};
@@ -119,7 +117,7 @@ impl ApplicationTab for BdrkTab {
                     task.view(i == self.blocks.len() - 1)
                         .map(move |message| BdrkMessage::Block(i, message))
                 })
-                .collect(),
+                .collect::<Vec<_>>(),
         )
         .padding(Padding::from([5, 20]))
         .spacing(5)

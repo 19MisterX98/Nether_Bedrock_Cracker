@@ -1,6 +1,7 @@
 use iced::theme::TextInput;
 use iced::widget::text_input;
-use iced::{Color, Theme};
+use iced::{Border, Color, Theme};
+use iced::border::Radius;
 
 pub struct TextInputErrorStyle;
 
@@ -12,9 +13,11 @@ impl text_input::StyleSheet for TextInputErrorStyle {
 
         text_input::Appearance {
             background: palette.background.base.color.into(),
-            border_radius: 2.0,
-            border_width: 1.0,
-            border_color: palette.danger.strong.color,
+            border: Border {
+                radius: Radius::from(2.0),
+                width: 1.0,
+                color: palette.danger.strong.color,
+            },
             icon_color: palette.background.weak.text,
         }
     }
@@ -24,9 +27,11 @@ impl text_input::StyleSheet for TextInputErrorStyle {
 
         text_input::Appearance {
             background: palette.background.base.color.into(),
-            border_radius: 2.0,
-            border_width: 1.0,
-            border_color: palette.danger.strong.color,
+            border: Border {
+                radius: Radius::from(2.0),
+                width: 1.0,
+                color: palette.danger.strong.color,
+            },
             icon_color: palette.background.weak.text,
         }
     }
@@ -52,9 +57,11 @@ impl text_input::StyleSheet for TextInputErrorStyle {
 
         text_input::Appearance {
             background: palette.background.base.color.into(),
-            border_radius: 2.0,
-            border_width: 1.0,
-            border_color: palette.background.base.text,
+            border: Border {
+                radius: Radius::from(2.0),
+                width: 1.0,
+                color: palette.background.base.text,
+            },
             icon_color: palette.background.weak.text,
         }
     }

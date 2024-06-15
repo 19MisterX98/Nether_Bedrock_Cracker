@@ -2,8 +2,8 @@ mod tab;
 
 use crate::tab::bedrock::bedrock_tab::{BdrkTab};
 use crate::tab::controls::{ControlMenu, ControlMessage};
-use iced::{keyboard, Application, Element, Settings, Theme};
-use iced_native::{event, subscription, Command, Event, Subscription};
+use iced::{Application, Element, Settings, Theme, Command, Subscription, event, Event, keyboard};
+use iced::keyboard::key::Named;
 
 fn main() -> iced::Result {
     <State as Application>::run(Settings::default())
@@ -62,10 +62,10 @@ impl Application for State {
             .subscription()
             .map(Message::ControlMessage);
 
-        let tab_sub = subscription::events_with(|event, status| match (event, status) {
+        let tab_sub = event::listen_with(|event, status| match (event, status) {
             (
                 Event::Keyboard(keyboard::Event::KeyPressed {
-                    key_code: keyboard::KeyCode::Tab,
+                    key: keyboard::Key::Named(Named::Tab),
                     modifiers,
                     ..
                 }),
