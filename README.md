@@ -18,6 +18,11 @@ After gathering the required data, you have two options:
 1. Run the cracker and view the cracked seeds in the graphical user interface (GUI).
 2. Run the cracker and save the found seeds to a file.
 
+### Advanced
+
+You can use this tool to filter a seed list via bedrock positions. Simply load the list via the "Load seed list" button.
+Seed lists are text files where each seed is on a new line. [Click here to view the format](examples/seedlist.txt)
+
 ## Known Issues
 
 ### PaperMC Servers
