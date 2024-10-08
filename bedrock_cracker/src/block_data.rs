@@ -2,7 +2,7 @@ use java_random::JAVA_LCG;
 use crate::{MASK48};
 use crate::raw_data::block::Block;
 use crate::raw_data::block_type::BlockType;
-use crate::raw_data::modes::CrackerMode;
+use crate::raw_data::modes::BedrockGeneration;
 
 #[derive(Clone, Debug)]
 pub struct BlockFilter {
@@ -13,13 +13,13 @@ pub struct BlockFilter {
 }
 
 impl BlockFilter {
-    pub fn from(b: &Block, mode: CrackerMode) -> BlockFilter {
+    pub fn from(b: &Block, mode: BedrockGeneration) -> BlockFilter {
         Self::new(b.x, b.y, b.z, b.block_type, mode)
     }
 
-    fn new(x: i32, mut y: i32, z: i32, block_type: BlockType, mode: CrackerMode) -> Self {
+    fn new(x: i32, mut y: i32, z: i32, block_type: BlockType, mode: BedrockGeneration) -> Self {
         let (lower_bound, upper_bound) = Self::bounds(y, block_type);
-        if mode == CrackerMode::Paper1_18 {
+        if mode == BedrockGeneration::Paper1_18 {
             y = if y > 5 { 122 } else { 0 }
         }
         let pos_hash = BlockFilter::hashcode(x, y, z) ^ JAVA_LCG.multiplier;
@@ -155,16 +155,16 @@ mod tests {
     use crate::block_data::{BlockFilter, CheckObject};
     use crate::MASK48;
     use crate::raw_data::block_type::BlockType;
-    use crate::raw_data::modes::CrackerMode;
+    use crate::raw_data::modes::BedrockGeneration;
 
     #[test]
     fn test_hashcode() {
-        let block = BlockFilter::new(-98, 4, -469, BlockType::BEDROCK, CrackerMode::Normal);
+        let block = BlockFilter::new(-98, 4, -469, BlockType::BEDROCK, BedrockGeneration::Normal);
         assert_eq!(block.pos_hash, 99261249361405 ^ JAVA_LCG.multiplier)
     }
 
     #[test]
     fn test_filler_check() {
-        assert!(!CheckObject::filler().check(MASK48))
+        assert!(!CheckObject::default().check(MASK48))
     }
 }

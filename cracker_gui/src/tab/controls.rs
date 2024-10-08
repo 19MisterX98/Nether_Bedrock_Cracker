@@ -164,7 +164,9 @@ where
                     |()| ControlMessage::None,
                 );
             }
-            ControlMessage::TabMessage(msg) => self.tab.update(msg.into()),
+            ControlMessage::TabMessage(msg) => {
+                return self.tab.update(msg.into()).map(ControlMessage::TabMessage);
+            },
             ControlMessage::None => {}
         }
         Command::none()
@@ -319,7 +321,7 @@ pub trait ApplicationTab {
 
     fn save_config(&self) -> String;
 
-    fn update(&mut self, message: Self::Message);
+    fn update(&mut self, message: Self::Message) -> Command<TabMessage>;
 
     fn view(&self) -> Element<TabMessage>;
 

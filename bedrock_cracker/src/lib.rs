@@ -5,13 +5,13 @@ pub mod raw_data;
 use std::cmp::min;
 
 use std::{thread};
-
+use std::sync::Arc;
 
 
 use crate::block_data::{BlockFilter, get_filter_power};
-use crate::layer::{create_filter_tree};
+use crate::layer::{create_filter_tree, flat_search};
 use crate::raw_data::block::Block;
-use crate::raw_data::modes::{CrackerMode, OutputMode};
+use crate::raw_data::modes::{BedrockGeneration, OutputMode};
 use crate::raw_data::sender::Sender;
 
 const MASK48: u64 = 0xFFFF_FFFF_FFFF;
@@ -23,12 +23,48 @@ const CHUNK_SIZE: u64 = (1 << 12) * (1 << 25); // interrupts every 2^25 seeds
 /// this estimate is naive
 pub fn estimate_result_amount(blocks: &[Block]) -> u64 {
     let filters: Vec<_> = blocks.iter()
-        .map(|block | BlockFilter::from(block, CrackerMode::Normal))
+        .map(|block | BlockFilter::from(block, BedrockGeneration::Normal))
         .collect();
     get_filter_power(&filters)
 }
 
-pub fn search_bedrock_pattern<S: Sender + 'static>(blocks: &[Block], thread_count: u64, mode: CrackerMode, output: OutputMode, sender: S) {
+pub fn search_bedrock_pattern_with_list<S: Sender + 'static>(blocks: &[Block], thread_count: u64, seed_list: &[u64], mode: BedrockGeneration, sender: S) {
+    let mut roof_blocks = Vec::new();
+    let mut floor_blocks = Vec::new();
+
+    for block in blocks.iter() {
+        let check = BlockFilter::from(&block, mode).create_check(0);
+        if block.y > 5 {
+            roof_blocks.push(check);
+        } else {
+            floor_blocks.push(check);
+        }
+    }
+    let roof_blocks = Arc::new(roof_blocks);
+    let floor_blocks = Arc::new(floor_blocks);
+
+
+    let chunk_size = seed_list.len() as f64 / thread_count as f64;
+
+
+    let chunks = seed_list.chunks(chunk_size.ceil() as usize);
+
+    for chunk in chunks.into_iter() {
+
+        let chunk = Vec::from(chunk);
+        let sender = sender.clone();
+        let roof_blocks = roof_blocks.clone();
+        let floor_blocks = floor_blocks.clone();
+
+        thread::spawn(move||{
+
+            flat_search(&chunk, roof_blocks, floor_blocks, sender);
+        });
+    }
+}
+
+
+pub fn search_bedrock_pattern<S: Sender + 'static>(blocks: &[Block], thread_count: u64, mode: BedrockGeneration, output: OutputMode, sender: S) {
     let checks = create_filter_tree(blocks, mode, output, sender.clone());
 
     for thread in 0..thread_count {

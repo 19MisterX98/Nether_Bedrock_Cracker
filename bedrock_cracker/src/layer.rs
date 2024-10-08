@@ -1,14 +1,15 @@
 use std::{array, fmt};
+use std::sync::Arc;
 
 use java_random::{JAVA_LCG, Random};
 use next_long_reverser::get_next_long;
-use crate::{CrackProgress, FLOOR_HASH, ROOF_HASH};
+use crate::{CrackProgress, FLOOR_HASH, MASK48, ROOF_HASH};
 use crate::block_data::{BlockFilter, CheckObject, get_filter_power};
 use crate::raw_data::block::Block;
-use crate::raw_data::modes::{CrackerMode, OutputMode};
+use crate::raw_data::modes::{BedrockGeneration, OutputMode};
 use crate::raw_data::sender::Sender;
 
-fn split_floor_roof(blocks: &[Block], mode: CrackerMode) -> (Vec<BlockFilter>, Vec<BlockFilter>) {
+fn split_floor_roof(blocks: &[Block], mode: BedrockGeneration) -> (Vec<BlockFilter>, Vec<BlockFilter>) {
     let mut floor_blocks = vec![];
     let mut roof_blocks = vec![];
 
@@ -41,7 +42,7 @@ struct CrossComparison<S: Sender> {
     output: OutputMode,
 }
 
-pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: CrackerMode, output: OutputMode, tx: S) -> Layer<S> {
+pub fn create_filter_tree<S: Sender>(blocks: &[Block], mode: BedrockGeneration, output: OutputMode, tx: S) -> Layer<S> {
 
     let (floor_blocks, roof_blocks) = split_floor_roof(blocks, mode);
 
@@ -231,10 +232,27 @@ impl<S: Sender> CrossComparison<S> {
     }
 }
 
+pub fn flat_search<S: Sender + 'static>(seed_list: &[u64], roof_blocks: Arc<Vec<CheckObject>>, floor_blocks: Arc<Vec<CheckObject>>, sender: S) {
+
+
+    let check_seed = |seed, blocks: &[CheckObject]| blocks.iter().all(|block| !block.check(seed));
+
+    for (index, seed) in seed_list.iter().enumerate() {
+        let rand = next_long(*seed);
+        let roof_seed = next_long(rand ^ ROOF_HASH) & MASK48;
+        let floor_seed = next_long(rand ^ FLOOR_HASH) & MASK48;
+
+        if check_seed(roof_seed, &roof_blocks) && check_seed(floor_seed, &floor_blocks) {
+            sender.send(CrackProgress::Seed(*seed));
+            sender.send(CrackProgress::Progress(index as u64));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::mpsc;
-    use crate::MASK48;
+    use crate::{MASK48, search_bedrock_pattern_with_list};
     use crate::raw_data::block_type::BlockType;
     use super::*;
 
@@ -270,6 +288,26 @@ mod tests {
     ];
 
     #[test]
+    fn test_flat_search() {
+        let seedlist: Vec<u64>  = vec![765906787396911863];
+        let blocks = [
+            Block::new(-1, 123, -7, BlockType::BEDROCK),
+            Block::new(-1, 123, -9, BlockType::BEDROCK),
+            Block::new(-2, 123, -11, BlockType::BEDROCK),
+            Block::new(-3, 123, -10, BlockType::BEDROCK),
+            Block::new(-5, 123, -10, BlockType::BEDROCK),
+        ];
+        let (sender, receiver) = mpsc::channel();
+
+        search_bedrock_pattern_with_list(&blocks,1,&seedlist,BedrockGeneration::Normal, sender);
+
+        if let Ok(CrackProgress::Seed(seed)) = receiver.recv() {
+        } else {
+            panic!("No seed found");
+        }
+    }
+
+    #[test]
     fn test_world_seed_to_roof() {
         let rand = next_long(WORLD_SEED);
         let roof = next_long(rand ^ ROOF_HASH) & MASK48;
@@ -292,14 +330,14 @@ mod tests {
         BLOCKS
             .iter()
             .filter(|block| block.y > 5)
-            .map(|block| BlockFilter::from(block, CrackerMode::Normal).create_check(10))
+            .map(|block| BlockFilter::from(block, BedrockGeneration::Normal).create_check(10))
             .filter(|check| check.check(ROOF_SEED & 0xFFFF_FFFF_FC00))
             .for_each(|check| panic!("roof bedrock failed: {:#?}", check));
 
         BLOCKS
             .iter()
             .filter(|block| block.y < 5)
-            .map(|block| BlockFilter::from(block, CrackerMode::Normal).create_check(10))
+            .map(|block| BlockFilter::from(block, BedrockGeneration::Normal).create_check(10))
             .filter(|check| check.check(FLOOR_SEED & 0xFFFF_FFFF_FC00))
             .for_each(|check| panic!("floor bedrock failed: {:#?}", check));
     }
@@ -308,7 +346,7 @@ mod tests {
     fn test_filter_tree() {
         let (sender, receiver) = mpsc::channel();
 
-        let layers = create_filter_tree(&BLOCKS, CrackerMode::Normal, OutputMode::WorldSeed, sender);
+        let layers = create_filter_tree(&BLOCKS, BedrockGeneration::Normal, OutputMode::WorldSeed, sender);
 
         // the cracker uses roof data as the primary filter if it has equal info from floor and roof
         layers.run_checks(ROOF_SEED & 0xFFFF_FFFF_F000);

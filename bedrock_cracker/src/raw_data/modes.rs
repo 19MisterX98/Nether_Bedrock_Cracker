@@ -2,24 +2,24 @@ use std::fmt;
 use std::fmt::Formatter;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum CrackerMode {
+pub enum BedrockGeneration {
     #[default]
     Normal,
     Paper1_18,
 }
 
-impl CrackerMode {
-    pub const ALL: [CrackerMode; 2] = [CrackerMode::Normal, CrackerMode::Paper1_18];
+impl BedrockGeneration {
+    pub const ALL: [BedrockGeneration; 2] = [BedrockGeneration::Normal, BedrockGeneration::Paper1_18];
 }
 
-impl fmt::Display for CrackerMode {
+impl fmt::Display for BedrockGeneration {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                CrackerMode::Normal => "Vanilla Generation",
-                CrackerMode::Paper1_18 => "PaperMC < 1.19.2-213",
+                BedrockGeneration::Normal => "Vanilla Generation",
+                BedrockGeneration::Paper1_18 => "PaperMC < 1.19.2-213",
             }
         )
     }

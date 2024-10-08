@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use async_std::fs;
 use crate::tab::bedrock::block_entry::{Block, BlockMessage};
 use crate::tab::controls::{ApplicationTab, CrackerEvent, CrackerState, TabMessage};
 
@@ -5,29 +7,34 @@ use async_std::fs::File;
 use async_std::task::spawn_blocking;
 use iced::futures::io::BufWriter;
 use iced::futures::{AsyncWriteExt, SinkExt};
-use iced::{futures, Element, Length, Padding, Subscription, subscription};
-use bedrock_cracker::{CrackProgress, estimate_result_amount, search_bedrock_pattern};
+use iced::{futures, Element, Length, Padding, Subscription, subscription, Command};
+use bedrock_cracker::{CrackProgress, estimate_result_amount, search_bedrock_pattern, search_bedrock_pattern_with_list};
 use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
-use iced::widget::{Column, column, pick_list, row, Scrollable, text};
+use iced::widget::{button, Column, column, pick_list, row, Scrollable, text, tooltip};
+use iced::widget::tooltip::Position;
+use rfd::AsyncFileDialog;
 use tokio::sync::mpsc::channel;
 use bedrock_cracker::raw_data::block_type::BlockType;
-use bedrock_cracker::raw_data::modes::{CrackerMode, OutputMode};
+use bedrock_cracker::raw_data::modes::{BedrockGeneration, OutputMode};
 
 #[derive(Debug, Default)]
 pub struct BdrkTab {
     estimated_seeds: u64,
     blocks: Vec<Block>,
     valid_blocks: Vec<BlockInfo>,
-    mode: CrackerMode,
+    mode: BedrockGeneration,
     output_mode: OutputMode,
+    seed_list: Arc<Vec<u64>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum BdrkMessage {
     Block(usize, BlockMessage),
-    CrackerMode(CrackerMode),
+    CrackerMode(BedrockGeneration),
     OutputMode(OutputMode),
+    LoadSeedList,
+    LoadedSeedList(Option<String>)
 }
 
 impl From<TabMessage> for BdrkMessage {
@@ -46,8 +53,9 @@ impl ApplicationTab for BdrkTab {
             estimated_seeds: (1 << 48),
             blocks: vec![Block::new()],
             valid_blocks: Vec::new(),
-            mode: CrackerMode::Normal,
+            mode: BedrockGeneration::Normal,
             output_mode: OutputMode::WorldSeed,
+            seed_list: Arc::new(Vec::new())
         }
     }
 
@@ -69,7 +77,7 @@ impl ApplicationTab for BdrkTab {
         content
     }
 
-    fn update(&mut self, message: Self::Message) {
+    fn update(&mut self, message: Self::Message) -> Command<TabMessage> {
         match message {
             BdrkMessage::Block(index, BlockMessage::Deleted) => {
                 self.blocks.remove(index);
@@ -89,7 +97,26 @@ impl ApplicationTab for BdrkTab {
             BdrkMessage::OutputMode(mode) => {
                 self.output_mode = mode;
             }
+            BdrkMessage::LoadSeedList => {
+                return Command::perform(
+                    async {
+                        let handle = AsyncFileDialog::new().pick_file().await?;
+                        let file = fs::read_to_string(handle.path()).await.ok()?;
+                        Some(file)
+                    },
+                    BdrkMessage::LoadedSeedList,
+                ).map(TabMessage::BdrkMessage);
+            }
+            BdrkMessage::LoadedSeedList(seed_file) => {
+                if let Some(seeds) = seed_file {
+                    let seed_list: Vec<_> = seeds.lines().filter_map(|line| line.parse::<u64>().ok()).collect();
+                    self.seed_list = Arc::new(seed_list);
+                } else {
+                    self.seed_list = Arc::new(Vec::new());
+                }
+            }
         }
+        Command::none()
     }
 
     fn view(&self) -> Element<TabMessage> {
@@ -99,7 +126,7 @@ impl ApplicationTab for BdrkTab {
         ))
             .width(Length::Fill);
         let crack_mode = pick_list(
-            &CrackerMode::ALL[..],
+            &BedrockGeneration::ALL[..],
             Some(self.mode),
             BdrkMessage::CrackerMode,
         );
@@ -108,7 +135,19 @@ impl ApplicationTab for BdrkTab {
             Some(self.output_mode),
             BdrkMessage::OutputMode,
         );
-        let top_bar = row![estimate, crack_mode, output_mode];
+        let seed_list_button: Element<_> = if self.seed_list.is_empty() {
+            Element::from(tooltip(
+                button("Load seed list").on_press(BdrkMessage::LoadSeedList),
+                "Check a text file of structure seeds against the bedrock positions",
+                Position::Bottom
+            ))
+        } else {
+            Element::from(
+                button("Unload seed list").on_press(BdrkMessage::LoadedSeedList(None))
+            )
+        };
+
+        let top_bar = row![estimate, crack_mode, output_mode, seed_list_button];
         let coords: Element<_> = column(
             self.blocks
                 .iter()
@@ -133,7 +172,7 @@ impl ApplicationTab for BdrkTab {
             CrackerState::Starting(file_output) => {
                 let threads = threads.parse::<u64>().unwrap_or(1);
 
-                crack(&self.valid_blocks, file_output, threads, self.mode, self.output_mode)
+                crack(&self.valid_blocks, &self.seed_list, file_output, threads, self.mode, self.output_mode)
             }
             CrackerState::Running => subscription::run_with_id(
                 std::any::TypeId::of::<Unique>(),
@@ -175,14 +214,14 @@ impl BdrkTab {
         self.valid_blocks = valid_blocks;
     }
 
-    fn check_invalid(block: &BlockInfo, valid_blocks: &[BlockInfo], mode: CrackerMode) -> bool {
+    fn check_invalid(block: &BlockInfo, valid_blocks: &[BlockInfo], mode: BedrockGeneration) -> bool {
         for valid_block in valid_blocks.iter() {
             if block.x == valid_block.x &&
                 block.z == valid_block.z &&
                 (block.y > 5) == (valid_block.y > 5)
             {
                 if block.y == valid_block.y { return true }
-                if mode == CrackerMode::Paper1_18 {
+                if mode == BedrockGeneration::Paper1_18 {
                     if block.block_type == valid_block.block_type { return true }
                     let mut y1 = valid_block.y;
                     let mut y2 = block.y;
@@ -201,19 +240,22 @@ struct Unique;
 
 pub fn crack(
     blocks: &Vec<BlockInfo>,
+    seed_list: &Vec<u64>,
     file_output: &Option<String>,
     threads: u64,
-    mode: CrackerMode,
+    mode: BedrockGeneration,
     output_mode: OutputMode,
 ) -> Subscription<CrackerEvent> {
     let file_output = file_output.clone();
     let blocks: Vec<_> = blocks.clone();
+    let seed_list = seed_list.clone();
 
     subscription::channel(std::any::TypeId::of::<Unique>(), 100, move |mut output| {
         let file_output = file_output.clone();
         let blocks = blocks.clone();
+        let seed_list = seed_list.clone();
         async move {
-            let mut writer = create_file_writer(&file_output).await;
+            let mut writer: Option<BufWriter<File>> = create_file_writer(&file_output).await;
 
             output
                 .send(CrackerEvent::Started)
@@ -222,7 +264,11 @@ pub fn crack(
 
             let (sender, mut receiver) = channel(100);
 
-            spawn_blocking(move || search_bedrock_pattern(&blocks, threads, mode, output_mode, sender));
+            if seed_list.is_empty() {
+                spawn_blocking(move || search_bedrock_pattern(&blocks, threads, mode, output_mode, sender));
+            } else {
+                spawn_blocking(move || search_bedrock_pattern_with_list(&blocks, threads, &seed_list, mode, sender));
+            }
 
             let mut seeds = vec![];
             while let Some(pl_event) = receiver.recv().await {
@@ -272,11 +318,11 @@ mod tests {
             BlockInfo::new(1,3,1,BlockType::BEDROCK)
         ];
         //no duplicates -> block is valid
-        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Normal));
+        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, BedrockGeneration::Normal));
 
         //duplicates -> block is invalid
         valid_blocks.push(block.clone());
-        assert!(BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Normal));
+        assert!(BdrkTab::check_invalid(&block, &valid_blocks, BedrockGeneration::Normal));
     }
 
     #[test]
@@ -286,18 +332,18 @@ mod tests {
             BlockInfo::new(1,2,1,BlockType::OTHER)
         ];
         //valid position
-        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, BedrockGeneration::Paper1_18));
 
         //bedrock ont op of other is an invalid placement
         block.y = 3;
-        assert!(BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+        assert!(BdrkTab::check_invalid(&block, &valid_blocks, BedrockGeneration::Paper1_18));
 
         //Two of the same type in the same column is redundant
         block.block_type = BlockType::OTHER;
-        assert!(BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+        assert!(BdrkTab::check_invalid(&block, &valid_blocks, BedrockGeneration::Paper1_18));
 
         //valid on opposite sites
         block.y = 123;
-        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, CrackerMode::Paper1_18));
+        assert!(!BdrkTab::check_invalid(&block, &valid_blocks, BedrockGeneration::Paper1_18));
     }
 }
