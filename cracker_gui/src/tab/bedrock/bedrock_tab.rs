@@ -18,6 +18,9 @@ use tokio::sync::mpsc::channel;
 use bedrock_cracker::raw_data::block_type::BlockType;
 use bedrock_cracker::raw_data::modes::{BedrockGeneration, OutputMode};
 
+pub const ALL_OPTIONS: [BedrockGeneration; 2] = [BedrockGeneration::Normal, BedrockGeneration::Paper1_18];
+pub const ALL_OUTPUT_MODES: [OutputMode; 2] = [OutputMode::WorldSeed, OutputMode::StructureSeed];
+
 #[derive(Debug, Default)]
 pub struct BdrkTab {
     estimated_seeds: u64,
@@ -126,12 +129,12 @@ impl ApplicationTab for BdrkTab {
         ))
             .width(Length::Fill);
         let crack_mode = pick_list(
-            &BedrockGeneration::ALL[..],
+            &ALL_OPTIONS[..],
             Some(self.mode),
             BdrkMessage::CrackerMode,
         );
         let output_mode = pick_list(
-            &OutputMode::ALL[..],
+            &ALL_OUTPUT_MODES[..],
             Some(self.output_mode),
             BdrkMessage::OutputMode,
         );
@@ -186,7 +189,7 @@ impl BdrkTab {
     fn update_blocks(&mut self) {
         self.add_entry();
         self.update_invalid_states();
-        self.estimated_seeds = estimate_result_amount(&self.valid_blocks).max(1);
+        self.estimated_seeds = estimate_result_amount(self.valid_blocks.as_ptr(), self.valid_blocks.len()).max(1);
     }
 
     fn add_entry(&mut self) {

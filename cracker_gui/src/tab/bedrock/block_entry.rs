@@ -6,6 +6,8 @@ use bedrock_cracker::raw_data::block_type::BlockType;
 use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
 
+pub const ALL_BLOCK_TYPES: [BlockType; 2] = [BlockType::BEDROCK, BlockType::OTHER];
+
 #[derive(Debug, Clone)]
 pub struct Block {
     x: Coord,
@@ -118,7 +120,7 @@ impl Block {
         let y = self.y.view(last, self.duplicate, BlockMessage::EditedY);
         let z = self.z.view(last, self.duplicate, BlockMessage::EditedZ);
         let selection = pick_list(
-            &BlockType::ALL[..],
+            &ALL_BLOCK_TYPES[..],
             Some(self.block_type),
             BlockMessage::EditedType,
         );

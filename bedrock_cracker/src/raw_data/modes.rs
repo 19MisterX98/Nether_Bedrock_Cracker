@@ -2,14 +2,11 @@ use std::fmt;
 use std::fmt::Formatter;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[repr(C)]
 pub enum BedrockGeneration {
     #[default]
     Normal,
     Paper1_18,
-}
-
-impl BedrockGeneration {
-    pub const ALL: [BedrockGeneration; 2] = [BedrockGeneration::Normal, BedrockGeneration::Paper1_18];
 }
 
 impl fmt::Display for BedrockGeneration {
@@ -26,16 +23,13 @@ impl fmt::Display for BedrockGeneration {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[repr(C)]
 pub enum OutputMode {
     #[default]
     WorldSeed,
     StructureSeed,
 }
 
-
-impl OutputMode {
-    pub const ALL: [OutputMode; 2] = [OutputMode::WorldSeed, OutputMode::StructureSeed];
-}
 
 impl fmt::Display for OutputMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

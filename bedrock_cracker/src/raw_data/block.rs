@@ -2,6 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use crate::raw_data::block_type::BlockType;
 
+#[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Block {
     pub x: i32,
