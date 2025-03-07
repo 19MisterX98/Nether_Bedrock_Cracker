@@ -120,14 +120,9 @@ pub fn crack_internal(blocks: Vec<Block>, threads: u64, mode: BedrockGeneration,
 
     let mut seeds = vec![];
     while let Ok(pl_event) = receiver.recv() {
-        match pl_event {
-            CrackProgress::Progress(_) => {
-                seeds = vec![];
-            }
-            CrackProgress::Seed(num) => {
-                seeds.push(num as i64);
-            }
-        };
+        if let CrackProgress::Seed(num) = pl_event {
+            seeds.push(num as i64);
+        }
     }
     seeds
 }
