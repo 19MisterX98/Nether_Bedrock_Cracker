@@ -6,9 +6,7 @@ use std::cmp::min;
 
 use std::{thread};
 use std::sync::Arc;
-use async_std::task::spawn_blocking;
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc::channel;
+use std::sync::mpsc::channel;
 use crate::block_data::{BlockFilter, get_filter_power};
 use crate::layer::{create_filter_tree, flat_search};
 use crate::raw_data::block::Block;
@@ -112,18 +110,16 @@ pub extern fn crack(blocks_ptr: *const Block, len: usize, threads: u64, mode: Be
 
     let blocks_owned = blocks.to_vec();
 
-    let runtime = Runtime::new().unwrap();
-
-    runtime.block_on(crack_internal(blocks_owned, threads, mode, output_mode)).into()
+    crack_internal(blocks_owned, threads, mode, output_mode).into()
 }
 
-pub async fn crack_internal(blocks: Vec<Block>, threads: u64, mode: BedrockGeneration, output_mode: OutputMode, ) -> Vec<i64> {
-    let (sender, mut receiver) = channel(100);
+pub fn crack_internal(blocks: Vec<Block>, threads: u64, mode: BedrockGeneration, output_mode: OutputMode, ) -> Vec<i64> {
+    let (sender, receiver) = channel();
 
-    spawn_blocking(move || search_bedrock_pattern(&*blocks, threads, mode, output_mode, sender));
+    search_bedrock_pattern(&*blocks, threads, mode, output_mode, sender);
 
     let mut seeds = vec![];
-    while let Some(pl_event) = receiver.recv().await {
+    while let Ok(pl_event) = receiver.recv() {
         match pl_event {
             CrackProgress::Progress(_) => {
                 seeds = vec![];

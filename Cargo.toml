@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "bedrock_cracker",
-    "cracker_gui",
 ]
 
 [profile.release-opt]
