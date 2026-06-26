@@ -7,11 +7,11 @@ use async_std::fs::File;
 use async_std::task::spawn_blocking;
 use iced::futures::io::BufWriter;
 use iced::futures::{AsyncWriteExt, SinkExt};
-use iced::{futures, Element, Length, Padding, Subscription, subscription, Command};
+use iced::{futures, Element, Length, Padding, Subscription, subscription, Command, theme};
 use bedrock_cracker::{CrackProgress, estimate_result_amount, search_bedrock_pattern, search_bedrock_pattern_with_list};
 use bedrock_cracker::raw_data::block::Block as BlockInfo;
 
-use iced::widget::{button, Column, column, pick_list, row, Scrollable, text, tooltip};
+use iced::widget::{button, Column, column, pick_list, row, Scrollable, text, tooltip, container};
 use iced::widget::tooltip::Position;
 use rfd::AsyncFileDialog;
 use tokio::sync::mpsc::channel;
@@ -138,7 +138,9 @@ impl ApplicationTab for BdrkTab {
         let seed_list_button: Element<_> = if self.seed_list.is_empty() {
             Element::from(tooltip(
                 button("Load seed list").on_press(BdrkMessage::LoadSeedList),
-                "Check a text file of structure seeds against the bedrock positions",
+                container("Check a text file of structure seeds against the bedrock positions")
+                    .padding(4)
+                    .style(theme::Container::Box),
                 Position::Bottom
             ))
         } else {
